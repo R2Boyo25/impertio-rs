@@ -81,6 +81,7 @@ pub enum TokenKind {
     /// :NAME: … :end:
     Drawer {
         name: String,
+        contents: Vec<String>
     },
 
     /// #+begin: NAME ARGUMENTS ... #+end
@@ -111,65 +112,112 @@ fn variant_eq<T>(a: &T, b: &T) -> bool {
     std::mem::discriminant(a) == std::mem::discriminant(b)
 }
 
+#[derive(Eq, PartialEq)]
+enum State {
+    Default,
+    Drawer { lines: Vec<String>, name: String },
+    Block { _type: String, args: String, lines: Vec<String> }
+}
+
 pub struct Lexer {
     current_location: Location,
     last: Option<Token>,
     valid_for_initial_drawer: bool,
+    state: State,
 }
 
 lazy_static! {
     static ref HEADING_REGEX: Regex = Regex::new(r#"(?<stars>\*+)\s+(?<todo_state>(?:TODO|DONE)\s+)?(?<priority>#\[[a-zA-Z0-9]\]\s+)?(?<title>[^\n]+?)(?<tags>\s+\:([a-zA-Z0-9_@#%]+\:)+)?$"#).unwrap();
-    static ref PLANNING_REGEX: Regex = Regex::new(r"\s+(?<type>\w+):\s*(?<value>[^\n]+)").unwrap();
+    static ref PLANNING_REGEX: Regex = Regex::new(r"^\s+(?<type>\w+):\s*(?<value>[^\n]+)").unwrap();
+    static ref DRAWER_REGEX: Regex = Regex::new(r"^\s+:(?<name>[\w_-]+):").unwrap();
+    static ref CLOSE_DRAWER_REGEX: Regex = Regex::new(r"(?i)^\s+:end:").unwrap();
 }
 
 impl Lexer {
     pub fn new(filename: &str) -> Self {
         Self {
             current_location: Location {
-                line: 0,
+                line: 1,
                 file: filename.into(),
             },
             last: None,
             valid_for_initial_drawer: true,
+            state: State::Default
         }
     }
 
-    fn wrap(&mut self, kind: TokenKind) -> Token {
-        self.current_location = self.current_location.incremented();
-
-        Token {
+    fn wrap(&mut self, kind: TokenKind) -> Option<Token> {
+        Some(Token {
             location: self.current_location.clone(),
             kind,
-        }
+        })
     }
 
-    pub fn lex(&mut self, content: &str) -> Vec<Token> {
+    pub fn lex(&mut self, content: &str) -> Result<Vec<Token>, String> {
         let lines = content.split(|char| char == '\n');
         let mut tokens: Vec<Token> = vec![];
 
         for line in lines {
-            tokens.push(self.handle_line(line));
-            self.last = Some(tokens[tokens.len() - 1].clone());
-            self.valid_for_initial_drawer = matches!(
-                self.last,
-                Some(Token {
-                    kind: TokenKind::Keyword { .. },
-                    ..
-                }) | Some(Token {
-                    kind: TokenKind::Drawer { .. },
-                    ..
-                }) | None
-            ) && self.valid_for_initial_drawer;
+            if let Some(token) = self.handle_line(line) {
+                tokens.push(token.clone());
+                self.last = Some(token);
+                self.valid_for_initial_drawer = matches!(
+                    self.last,
+                    Some(Token {
+                        kind: TokenKind::Keyword { .. },
+                        ..
+                    }) | Some(Token {
+                        kind: TokenKind::Drawer { .. },
+                        ..
+                    }) | None
+                ) && self.valid_for_initial_drawer;
+            }
+
+            self.current_location = self.current_location.incremented();
         }
 
-        tokens
+        if self.state != State::Default {
+            return Err("Unexpected EOF.".into());
+        }
+        
+        Ok(tokens
             .iter()
             .filter(|token| token.kind != TokenKind::EmptyLine)
             .map(|x| x.to_owned())
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>())
     }
 
-    fn handle_line(&mut self, line: &str) -> Token {
+    fn handle_line(&mut self, line: &str) -> Option<Token> {
+        match &self.state {
+            State::Default => self.handle_normal(line),
+            State::Drawer {
+                name,
+                lines
+            } => {
+                if let Some(caps) = CLOSE_DRAWER_REGEX.captures(line) {
+                    let token = self.wrap(
+                        TokenKind::Drawer {
+                            name: name.to_owned(),
+                            contents: lines.to_owned()
+                        }
+                    );
+                        
+                    self.state = State::Default;
+
+                    token
+                } else {
+                    None
+                }
+            },
+            State::Block {
+                _type,
+                lines,
+                args
+            } => todo!()
+        }
+    }
+
+    fn handle_normal(&mut self, line: &str) -> Option<Token> {
         if line.trim() == "" {
             self.wrap(TokenKind::EmptyLine)
         } else if let Some(caps) = HEADING_REGEX.captures(line) {
@@ -203,14 +251,19 @@ impl Lexer {
                     kind: TokenKind::Heading { .. },
                     ..
                 })
-            )
-        } && matches!(PLANNING_REGEX.captures(line), Some(_))
-        {
+            ) && matches!(PLANNING_REGEX.captures(line), Some(_)) } {
             let caps = PLANNING_REGEX.captures(line).unwrap();
             self.wrap(TokenKind::Planning {
                 _type: caps["type"].into(),
                 value: caps["value"].into(),
             })
+        } else if let Some(caps) = DRAWER_REGEX.captures(line) {
+            self.state = State::Drawer {
+                name: caps["name"].to_owned(),
+                lines: vec![]
+            };
+
+            None
         } else {
             println!("{}", line);
             todo!()
@@ -229,9 +282,12 @@ mod test {
                 r#"
 * TODO #[A] COMMENT test :abc:
     DEADLINE: tomorrow
+    :drawer:
+    something: nothing
+    :enD:
 "#
             ),
-            vec![]
+            Ok(vec![])
         )
     }
 }
