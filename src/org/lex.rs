@@ -3,8 +3,8 @@ use fancy_regex::{Match, Regex};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Location {
-    file: String,
-    line: u32,
+    pub file: String,
+    pub line: u32,
 }
 
 impl Location {
@@ -105,8 +105,8 @@ pub enum TokenKind {
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Token {
-    kind: TokenKind,
-    location: Location,
+    pub kind: TokenKind,
+    pub location: Location,
 }
 
 fn match_to_str(match_: Match) -> String {
@@ -297,9 +297,10 @@ impl Lexer {
         } else if let Ok(Some(caps)) = HEADING_REGEX.captures(line) {
             let tags: Vec<String> = caps
                 .name("tags")
-                .map(|x| match_to_str(x).trim_matches(':').to_owned())
+                .map(|x| match_to_str(x))
                 .unwrap_or("".into())
                 .split(":")
+                .filter(|x| x != &"")
                 .map(|x| x.to_owned())
                 .collect();
 
