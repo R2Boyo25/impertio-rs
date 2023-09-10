@@ -1,66 +1,100 @@
-use regex::{Regex, Match};
 use lazy_static::lazy_static;
+use regex::{Match, Regex};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Location {
     file: String,
-    line: u32
+    line: u32,
 }
 
 impl Location {
     pub fn incremented(&self) -> Self {
         Self {
             file: self.file.clone(),
-            line: self.line + 1
+            line: self.line + 1,
         }
     }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum TokenKind {
-    	/// Meant to be ignored, useful in some cases - RE: $\s*^
-	EmptyLine,
+    /// Meant to be ignored, useful in some cases - RE: $\s*^
+    EmptyLine,
 
-	/// Any text that was not part of another block
-	Paragraph { content: String },
+    /// Any text that was not part of another block
+    Paragraph {
+        content: String,
+    },
 
-	/// | cell | cell | cell |
-	TableRow { cells: Vec<String> },
+    /// | cell | cell | cell |
+    TableRow {
+        cells: Vec<String>,
+    },
 
-	/// (?stars:\*+) (?todo_state:(?:TODO)|(?:DONE))? (?priority:#\[[a-zA-Z0-9]\])? (?title:[^\n]+) (?tags:\:([a-zA-Z0-9_@#%]\:)+)
-	/// level = stars.size()
-	/// commented = title.starts_with(“COMMENT”)
-	/// archived = tags.contains(“ARCHIVE”)
-	Heading { level: u8, todo_state: Option<String>, priority: Option<String>, commented: bool, title: String, tags: Vec<String>, archived: bool },
+    /// (?stars:\*+) (?todo_state:(?:TODO)|(?:DONE))? (?priority:#\[[a-zA-Z0-9]\])? (?title:[^\n]+) (?tags:\:([a-zA-Z0-9_@#%]\:)+)
+    /// level = stars.size()
+    /// commented = title.starts_with(“COMMENT”)
+    /// archived = tags.contains(“ARCHIVE”)
+    Heading {
+        level: u8,
+        todo_state: Option<String>,
+        priority: Option<String>,
+        commented: bool,
+        title: String,
+        tags: Vec<String>,
+        archived: bool,
+    },
 
-	/// Blocks
-	/// Lesser if type in ["src", "verse", "example", "export"] else Greater
+    Planning {
+        _type: String,
+        value: String,
+    },
 
-	/// #+BEGIN_TYPE ... #+END_TYPE
-	LesserBlock { _type: String },
+    /// Blocks
+    /// Lesser if type in ["src", "verse", "example", "export"] else Greater
 
-	/// #+BEGIN_TYPE … #+END_TYPE
-	GreaterBlock { _type: String },
+    /// #+BEGIN_TYPE ... #+END_TYPE
+    LesserBlock {
+        _type: String,
+    },
 
-	/// End Blocks
+    /// #+BEGIN_TYPE … #+END_TYPE
+    GreaterBlock {
+        _type: String,
+    },
 
-	/// #+NAME: content
-	/// Note: #+INCLUDE: does not count as a Keyword and is immediately replaced with the file contents.
-	Keyword { name: String, content: String },
+    /// End Blocks
 
-	/// # some text
-	/// #+BEGIN_COMMENT … #+END_COMMENT
-	Comment {content : String},
-	
-	/// :NAME: … :end:
-	Drawer { name: String },
+    /// #+NAME: content
+    /// Note: #+INCLUDE: does not count as a Keyword and is immediately replaced with the file contents.
+    Keyword {
+        name: String,
+        content: String,
+    },
 
-  /// #+begin: NAME ARGUMENTS ... #+end
-	DynBlock { _type: String, args: Vec<String> },
+    /// # some text
+    /// #+BEGIN_COMMENT … #+END_COMMENT
+    Comment {
+        content: String,
+    },
 
-	/// \[(?label:[a-zA-Z0-9_-])\]: (?contents:.+)
-	/// It ends at the next footnote definition, the next heading, two consecutive blank lines, or the end of buffer.
-	FootNote { label: String, contents: String }
+    /// :NAME: … :end:
+    Drawer {
+        name: String,
+    },
+
+    /// #+begin: NAME ARGUMENTS ... #+end
+    DynBlock {
+        _type: String,
+        args: Vec<String>,
+    },
+
+    /// \[(?label:[a-zA-Z0-9_-])\]: (?contents:.+)
+    /// It ends at the next footnote definition, the next heading, two consecutive blank lines, or the end of buffer.
+    FootNote {
+        label: String,
+        contents: String,
+    },
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -73,12 +107,19 @@ fn match_to_str(match_: Match) -> String {
     match_.as_str().trim().into()
 }
 
+fn variant_eq<T>(a: &T, b: &T) -> bool {
+    std::mem::discriminant(a) == std::mem::discriminant(b)
+}
+
 pub struct Lexer {
-    current_location: Location
+    current_location: Location,
+    last: Option<Token>,
+    valid_for_initial_drawer: bool,
 }
 
 lazy_static! {
-    static ref heading_regex: Regex = Regex::new(r#"(?<stars>\*+)\s+(?<todo_state>(?:TODO|DONE)\s+)?(?<priority>#\[[a-zA-Z0-9]\]\s+)?(?<title>[^\n]+?)(?<tags>\s+\:([a-zA-Z0-9_@#%]+\:)+)?$"#).unwrap();
+    static ref HEADING_REGEX: Regex = Regex::new(r#"(?<stars>\*+)\s+(?<todo_state>(?:TODO|DONE)\s+)?(?<priority>#\[[a-zA-Z0-9]\]\s+)?(?<title>[^\n]+?)(?<tags>\s+\:([a-zA-Z0-9_@#%]+\:)+)?$"#).unwrap();
+    static ref PLANNING_REGEX: Regex = Regex::new(r"\s+(?<type>\w+):\s*(?<value>[^\n]+)").unwrap();
 }
 
 impl Lexer {
@@ -86,8 +127,10 @@ impl Lexer {
         Self {
             current_location: Location {
                 line: 0,
-                file: filename.into()
-            }
+                file: filename.into(),
+            },
+            last: None,
+            valid_for_initial_drawer: true,
         }
     }
 
@@ -96,32 +139,81 @@ impl Lexer {
 
         Token {
             location: self.current_location.clone(),
-            kind
+            kind,
         }
     }
-    
+
     pub fn lex(&mut self, content: &str) -> Vec<Token> {
-        content.split(|char| char == '\n').map(|line| self.handle_line(line)).filter(|token| token.kind != TokenKind::EmptyLine).collect::<Vec<_>>()
+        let lines = content.split(|char| char == '\n');
+        let mut tokens: Vec<Token> = vec![];
+
+        for line in lines {
+            tokens.push(self.handle_line(line));
+            self.last = Some(tokens[tokens.len() - 1].clone());
+            self.valid_for_initial_drawer = matches!(
+                self.last,
+                Some(Token {
+                    kind: TokenKind::Keyword { .. },
+                    ..
+                }) | Some(Token {
+                    kind: TokenKind::Drawer { .. },
+                    ..
+                }) | None
+            ) && self.valid_for_initial_drawer;
+        }
+
+        tokens
+            .iter()
+            .filter(|token| token.kind != TokenKind::EmptyLine)
+            .map(|x| x.to_owned())
+            .collect::<Vec<_>>()
     }
 
     fn handle_line(&mut self, line: &str) -> Token {
         if line.trim() == "" {
             self.wrap(TokenKind::EmptyLine)
-        } else if let Some(caps) = heading_regex.captures(line) {
-            let tags: Vec<String> = caps.name("tags").map(|x| match_to_str(x).trim_matches(':').to_owned()).unwrap_or("".into()).split(":").map(|x| x.to_owned()).collect();
-            
+        } else if let Some(caps) = HEADING_REGEX.captures(line) {
+            let tags: Vec<String> = caps
+                .name("tags")
+                .map(|x| match_to_str(x).trim_matches(':').to_owned())
+                .unwrap_or("".into())
+                .split(":")
+                .map(|x| x.to_owned())
+                .collect();
+
             self.wrap(TokenKind::Heading {
                 level: u8::try_from(caps["stars"].len()).unwrap(),
                 todo_state: caps.name("todo_state").map(match_to_str),
-                priority: caps.name("priority").map(match_to_str).map(|x| (x[2..x.len()-1]).to_owned()),
+                priority: caps
+                    .name("priority")
+                    .map(match_to_str)
+                    .map(|x| (x[2..x.len() - 1]).to_owned()),
                 commented: caps["title"].starts_with("COMMENT"),
                 title: caps["title"].into(),
                 archived: tags.contains(&"ARCHIVED".to_owned()),
                 tags,
             })
+        } else if {
+            matches!(
+                self.last,
+                Some(Token {
+                    kind: TokenKind::Planning { .. },
+                    ..
+                }) | Some(Token {
+                    kind: TokenKind::Heading { .. },
+                    ..
+                })
+            )
+        } && matches!(PLANNING_REGEX.captures(line), Some(_))
+        {
+            let caps = PLANNING_REGEX.captures(line).unwrap();
+            self.wrap(TokenKind::Planning {
+                _type: caps["type"].into(),
+                value: caps["value"].into(),
+            })
         } else {
             println!("{}", line);
-            todo!()            
+            todo!()
         }
     }
 }
@@ -129,14 +221,17 @@ impl Lexer {
 #[cfg(test)]
 mod test {
     use crate::org::lex::Lexer;
-    
+
     #[test]
     fn test_lexer() {
-        assert_eq!(Lexer::new("test.org").lex(r#"
+        assert_eq!(
+            Lexer::new("test.org").lex(
+                r#"
 * TODO #[A] COMMENT test :abc:
+    DEADLINE: tomorrow
 "#
-        ), vec![
-            
-        ])
+            ),
+            vec![]
+        )
     }
 }

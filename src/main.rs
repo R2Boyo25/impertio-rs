@@ -11,9 +11,11 @@ struct Args {
 
 fn main() {
     // Initialize Logging.
-    let log_environ = env_logger::Env::new().filter("IMPERTIO_LOG").write_style("IMPERTIO_LOG_STYLE");
+    let log_environ = env_logger::Env::new()
+        .filter("IMPERTIO_LOG")
+        .write_style("IMPERTIO_LOG_STYLE");
     let mut log_builder = env_logger::Builder::new();
-    
+
     log_builder.filter_level(log::LevelFilter::Info);
     log_builder.parse_env(log_environ);
     log_builder.init();

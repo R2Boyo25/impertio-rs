@@ -3,18 +3,21 @@ use std::collections::HashMap;
 mod lex;
 
 enum ASTNode {
-    Heading {level: String, name: String, todo_status: Option<String>, children: Vec<ASTNode>}
+    Heading {
+        level: String,
+        name: String,
+        todo_status: Option<String>,
+        children: Vec<ASTNode>,
+    },
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub struct Section {
-    
-}
+pub struct Section {}
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct Document {
     metadata: HashMap<String, String>,
-    sections: Vec<Section>
+    sections: Vec<Section>,
 }
 
 impl Document {
@@ -29,16 +32,20 @@ impl Document {
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
     use crate::org::Document;
-    
+    use std::collections::HashMap;
+
     #[test]
     fn test_parser() {
-        assert_eq!(Document::parse("#+TITLE: hello"), Document {
-            metadata: HashMap::<String, String>::from_iter(vec![
-                ("title".into(), "this is the title".into())
-            ]),
-            sections: vec![]
-        });
+        assert_eq!(
+            Document::parse("#+TITLE: hello"),
+            Document {
+                metadata: HashMap::<String, String>::from_iter(vec![(
+                    "title".into(),
+                    "this is the title".into()
+                )]),
+                sections: vec![]
+            }
+        );
     }
 }
