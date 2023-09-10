@@ -139,7 +139,7 @@ pub struct Lexer {
 }
 
 lazy_static! {
-    static ref HEADING_REGEX: Regex = Regex::new(r#"(?<stars>\*+)\s+(?<todo_state>(?:(?!COMMENT)[A-Z]{2,})\s+)?(?<priority>#\[[a-zA-Z0-9]\]\s+)?(?<title>[^\n]+?)(?<tags>\s+\:([a-zA-Z0-9_@#%]+\:)+)?(?:\s+\[(?<cookie>(?:\d+\/\d+)|(?:[\d.]+%))\])?$"#).unwrap();
+    static ref HEADING_REGEX: Regex = Regex::new(r#"(?<stars>\*+)\s+(?<todo_state>(?:(?!COMMENT)[A-Z]{2,})\s+)?(?<priority>#\[[a-zA-Z0-9]\]\s+)?(?<title>[^\n]+?)(?<tags>\s+\:([a-zA-Z0-9_@#%]+\:)+)?(?:\s+\[(?<completion_amount>(?:\d+\/\d+)|(?:[\d.]+%))\])?$"#).unwrap();
     static ref PLANNING_REGEX: Regex = Regex::new(r"^\s+(?<type>\w+):\s*(?<value>[^\n]+)").unwrap();
     static ref DRAWER_REGEX: Regex = Regex::new(r"^\s+:(?<name>[\w_-]+):").unwrap();
     static ref CLOSE_DRAWER_REGEX: Regex = Regex::new(r"(?i)^\s+:end:").unwrap();
