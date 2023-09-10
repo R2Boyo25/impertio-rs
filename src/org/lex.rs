@@ -1,4 +1,4 @@
-use regex::Regex;
+use regex::{Regex, Match};
 use lazy_static::lazy_static;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -65,8 +65,12 @@ pub enum TokenKind {
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Token {
+    kind: TokenKind,
     location: Location,
-    kind: TokenKind
+}
+
+fn match_to_str(match_: Match) -> String {
+    match_.as_str().trim().into()
 }
 
 pub struct Lexer {
@@ -74,14 +78,14 @@ pub struct Lexer {
 }
 
 lazy_static! {
-    static ref heading_regex: Regex = Regex::new(r#"(?<stars>\*+) (?<todo_state>(?:TODO)|(?:DONE) )?(?<priority>#\[[a-zA-Z0-9]\] )?(?<title>[^\n]+)(?<tags> \:([a-zA-Z0-9_@#%]\:)+)?"#).unwrap();
+    static ref heading_regex: Regex = Regex::new(r#"(?<stars>\*+)\s+(?<todo_state>(?:TODO|DONE)\s+)?(?<priority>#\[[a-zA-Z0-9]\]\s+)?(?<title>[^\n]+?)(?<tags>\s+\:([a-zA-Z0-9_@#%]+\:)+)?$"#).unwrap();
 }
 
 impl Lexer {
     pub fn new(filename: &str) -> Self {
         Self {
             current_location: Location {
-                line: 1,
+                line: 0,
                 file: filename.into()
             }
         }
@@ -97,27 +101,19 @@ impl Lexer {
     }
     
     pub fn lex(&mut self, content: &str) -> Vec<Token> {
-        content.split(|char| char == '\n').map(|line| self.handle_line(line)).filter(|token| token.kind == TokenKind::EmptyLine).collect::<Vec<_>>()
-    }
-
-    fn empty_none(string: &str) -> Option<String> {
-        if string.len() == 0 {
-            return None;
-        }
-
-        Some(string.into())
+        content.split(|char| char == '\n').map(|line| self.handle_line(line)).filter(|token| token.kind != TokenKind::EmptyLine).collect::<Vec<_>>()
     }
 
     fn handle_line(&mut self, line: &str) -> Token {
-        if line.trim() == ""{
+        if line.trim() == "" {
             self.wrap(TokenKind::EmptyLine)
         } else if let Some(caps) = heading_regex.captures(line) {
-            let tags: Vec<String> = caps["tags"].split(":").map(|x| x.to_owned()).collect();
+            let tags: Vec<String> = caps.name("tags").map(|x| match_to_str(x).trim_matches(':').to_owned()).unwrap_or("".into()).split(":").map(|x| x.to_owned()).collect();
             
             self.wrap(TokenKind::Heading {
                 level: u8::try_from(caps["stars"].len()).unwrap(),
-                todo_state: caps.name("todo_state"),
-                priority: caps.name("priority"),
+                todo_state: caps.name("todo_state").map(match_to_str),
+                priority: caps.name("priority").map(match_to_str).map(|x| (x[2..x.len()-1]).to_owned()),
                 commented: caps["title"].starts_with("COMMENT"),
                 title: caps["title"].into(),
                 archived: tags.contains(&"ARCHIVED".to_owned()),
@@ -137,9 +133,10 @@ mod test {
     #[test]
     fn test_lexer() {
         assert_eq!(Lexer::new("test.org").lex(r#"
-* test
-"#), vec![
-
+* TODO #[A] COMMENT test :abc:
+"#
+        ), vec![
+            
         ])
     }
 }
