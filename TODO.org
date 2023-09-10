@@ -1,1 +1,8 @@
 * TODO fix ~index.org~ -> ~[2023-08-24T03:20:54Z INFO  impertio::files] Parsing index of ""~ being empty str, should be ~<root>~
+* TODO support elements in Greater blocks and non-property drawers [0/2]
+- [ ] Greater blocks
+- [ ] Non-property drawers
+* TODO support the TODO state cookies at the end of a heading [0/2]
+  https://orgmode.org/manual/Checkboxes.html
+- [ ] ~[0/2]~
+- [ ] ~[0%]~

@@ -56,11 +56,15 @@ pub enum TokenKind {
     /// #+BEGIN_TYPE ... #+END_TYPE
     LesserBlock {
         _type: String,
+        contents: Vec<String>,
+        args: String,
     },
 
     /// #+BEGIN_TYPE … #+END_TYPE
     GreaterBlock {
         _type: String,
+        contents: Vec<String>,
+        args: String,
     },
 
     /// End Blocks
@@ -81,13 +85,13 @@ pub enum TokenKind {
     /// :NAME: … :end:
     Drawer {
         name: String,
-        contents: Vec<String>
+        contents: Vec<String>,
     },
 
     /// #+begin: NAME ARGUMENTS ... #+end
     DynBlock {
-        _type: String,
-        args: Vec<String>,
+        args: String,
+        contents: Vec<String>,
     },
 
     /// \[(?label:[a-zA-Z0-9_-])\]: (?contents:.+)
@@ -112,11 +116,18 @@ fn variant_eq<T>(a: &T, b: &T) -> bool {
     std::mem::discriminant(a) == std::mem::discriminant(b)
 }
 
-#[derive(Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 enum State {
     Default,
-    Drawer { lines: Vec<String>, name: String },
-    Block { _type: String, args: String, lines: Vec<String> }
+    Drawer {
+        lines: Vec<String>,
+        name: String,
+    },
+    Block {
+        _type: Option<String>,
+        args: String,
+        lines: Vec<String>,
+    },
 }
 
 pub struct Lexer {
@@ -131,6 +142,9 @@ lazy_static! {
     static ref PLANNING_REGEX: Regex = Regex::new(r"^\s+(?<type>\w+):\s*(?<value>[^\n]+)").unwrap();
     static ref DRAWER_REGEX: Regex = Regex::new(r"^\s+:(?<name>[\w_-]+):").unwrap();
     static ref CLOSE_DRAWER_REGEX: Regex = Regex::new(r"(?i)^\s+:end:").unwrap();
+    static ref BLOCK_REGEX: Regex = Regex::new(r"(?i)^#\+BEGIN(?:_(?<type>[a-zA-Z]+))?:?\s*(?<args>(?:.+)?)$").unwrap();
+    static ref CLOSE_BLOCK_REGEX: Regex = Regex::new(r"(?i)^#\+END(?:_(?<type>[a-zA-Z]+))").unwrap();
+    static ref COMMENT_REGEX: Regex = Regex::new(r"^#\s+(?<content>.+)").unwrap();
 }
 
 impl Lexer {
@@ -142,11 +156,11 @@ impl Lexer {
             },
             last: None,
             valid_for_initial_drawer: true,
-            state: State::Default
+            state: State::Default,
         }
     }
 
-    fn wrap(&mut self, kind: TokenKind) -> Option<Token> {
+    fn wrap(&self, kind: TokenKind) -> Option<Token> {
         Some(Token {
             location: self.current_location.clone(),
             kind,
@@ -179,7 +193,7 @@ impl Lexer {
         if self.state != State::Default {
             return Err("Unexpected EOF.".into());
         }
-        
+
         Ok(tokens
             .iter()
             .filter(|token| token.kind != TokenKind::EmptyLine)
@@ -187,33 +201,92 @@ impl Lexer {
             .collect::<Vec<_>>())
     }
 
+    fn construct_block(
+        &self,
+        type_: Option<String>,
+        lines: Vec<String>,
+        args: String,
+    ) -> Option<Token> {
+        match type_ {
+            Some(type_) => match type_.as_str() {
+                "comment" => self.wrap(TokenKind::Comment {
+                    content: lines.join("\n"),
+                }),
+                "src" | "verse" | "example" | "export" => self.wrap(TokenKind::LesserBlock {
+                    _type: type_,
+                    contents: lines,
+                    args,
+                }),
+                _ => self.wrap(TokenKind::GreaterBlock {
+                    _type: type_,
+                    contents: lines,
+                    args,
+                }),
+            },
+            None => self.wrap(TokenKind::DynBlock {
+                args,
+                contents: lines,
+            }),
+        }
+    }
+
     fn handle_line(&mut self, line: &str) -> Option<Token> {
         match &self.state {
             State::Default => self.handle_normal(line),
-            State::Drawer {
-                name,
-                lines
-            } => {
-                if let Some(caps) = CLOSE_DRAWER_REGEX.captures(line) {
-                    let token = self.wrap(
-                        TokenKind::Drawer {
-                            name: name.to_owned(),
-                            contents: lines.to_owned()
-                        }
-                    );
-                        
+            State::Drawer { name, lines } => {
+                if let Some(_) = CLOSE_DRAWER_REGEX.captures(line) {
+                    let token = self.wrap(TokenKind::Drawer {
+                        name: name.to_owned(),
+                        contents: lines.to_owned(),
+                    });
+
                     self.state = State::Default;
 
                     token
                 } else {
+                    let mut tmp_lines: Vec<String> = lines.to_owned();
+
+                    tmp_lines.push(line.to_owned());
+
+                    self.state = State::Drawer {
+                        lines: tmp_lines,
+                        name: name.to_owned(),
+                    };
+
                     None
                 }
-            },
-            State::Block {
-                _type,
-                lines,
-                args
-            } => todo!()
+            }
+            State::Block { _type, lines, args } => {
+                if let Some(caps) = CLOSE_BLOCK_REGEX.captures(line) {
+                    if caps
+                        .name("type")
+                        .map(match_to_str)
+                        .map(|x| x.to_ascii_lowercase())
+                        != *_type
+                    {
+                        panic!("Closing a block of a different type.")
+                    }
+
+                    let token =
+                        self.construct_block(_type.to_owned(), lines.to_owned(), args.to_owned());
+
+                    self.state = State::Default;
+
+                    token
+                } else {
+                    let mut tmp_lines: Vec<String> = lines.to_owned();
+
+                    tmp_lines.push(line.to_owned());
+
+                    self.state = State::Block {
+                        lines: tmp_lines,
+                        _type: _type.to_owned(),
+                        args: args.to_owned(),
+                    };
+
+                    None
+                }
+            }
         }
     }
 
@@ -251,7 +324,8 @@ impl Lexer {
                     kind: TokenKind::Heading { .. },
                     ..
                 })
-            ) && matches!(PLANNING_REGEX.captures(line), Some(_)) } {
+            ) && matches!(PLANNING_REGEX.captures(line), Some(_))
+        } {
             let caps = PLANNING_REGEX.captures(line).unwrap();
             self.wrap(TokenKind::Planning {
                 _type: caps["type"].into(),
@@ -260,10 +334,25 @@ impl Lexer {
         } else if let Some(caps) = DRAWER_REGEX.captures(line) {
             self.state = State::Drawer {
                 name: caps["name"].to_owned(),
-                lines: vec![]
+                lines: vec![],
             };
 
             None
+        } else if let Some(caps) = BLOCK_REGEX.captures(line) {
+            self.state = State::Block {
+                _type: caps
+                    .name("type")
+                    .map(match_to_str)
+                    .map(|x| x.to_ascii_lowercase()),
+                args: caps["args"].to_owned(),
+                lines: vec![],
+            };
+
+            None
+        } else if let Some(caps) = COMMENT_REGEX.captures(line) {
+            self.wrap(TokenKind::Comment {
+                content: caps["content"].to_owned(),
+            })
         } else {
             println!("{}", line);
             todo!()
@@ -274,11 +363,12 @@ impl Lexer {
 #[cfg(test)]
 mod test {
     use crate::org::lex::Lexer;
+    use crate::org::lex::{Location, Token, TokenKind};
 
     #[test]
-    fn test_lexer() {
+    fn test_heading() {
         assert_eq!(
-            Lexer::new("test.org").lex(
+            Lexer::new("headings.org").lex(
                 r#"
 * TODO #[A] COMMENT test :abc:
     DEADLINE: tomorrow
@@ -288,6 +378,50 @@ mod test {
 "#
             ),
             Ok(vec![])
+        )
+    }
+
+    #[test]
+    fn zeroth_section() {
+        assert_eq!(
+            Lexer::new("zero.org").lex(
+                r#"    :drawer:
+    abc: another
+    :end:"#
+            ),
+            Ok(vec![])
+        )
+    }
+
+    #[test]
+    fn comments() {
+        assert_eq!(
+            Lexer::new("comments.org").lex(
+                r#"#+BEGIN_COMMENT
+hewwo
+#+END_COMMENT
+# another comment"#
+            ),
+            Ok(vec![
+                Token {
+                    kind: TokenKind::Comment {
+                        content: "hewwo".into()
+                    },
+                    location: Location {
+                        file: "comments.org".into(),
+                        line: 3
+                    }
+                },
+                Token {
+                    kind: TokenKind::Comment {
+                        content: "another comment".into()
+                    },
+                    location: Location {
+                        file: "comments.org".into(),
+                        line: 4
+                    }
+                }
+            ])
         )
     }
 }
