@@ -43,6 +43,7 @@ pub enum TokenKind {
         title: String,
         tags: Vec<String>,
         archived: bool,
+        completion_amount: Option<String>
     },
 
     Planning {
@@ -138,7 +139,7 @@ pub struct Lexer {
 }
 
 lazy_static! {
-    static ref HEADING_REGEX: Regex = Regex::new(r#"(?<stars>\*+)\s+(?<todo_state>(?:TODO|DONE)\s+)?(?<priority>#\[[a-zA-Z0-9]\]\s+)?(?<title>[^\n]+?)(?<tags>\s+\:([a-zA-Z0-9_@#%]+\:)+)?$"#).unwrap();
+    static ref HEADING_REGEX: Regex = Regex::new(r#"(?<stars>\*+)\s+(?<todo_state>(?:TODO|DONE)\s+)?(?<priority>#\[[a-zA-Z0-9]\]\s+)?(?<title>[^\n]+?)(?<tags>\s+\:([a-zA-Z0-9_@#%]+\:)+)?(?:\s+\[(?<completion_amount>(?:\d+\/\d+)|(?:[\d.]+%))\])?$"#).unwrap();
     static ref PLANNING_REGEX: Regex = Regex::new(r"^\s+(?<type>\w+):\s*(?<value>[^\n]+)").unwrap();
     static ref DRAWER_REGEX: Regex = Regex::new(r"^\s+:(?<name>[\w_-]+):").unwrap();
     static ref CLOSE_DRAWER_REGEX: Regex = Regex::new(r"(?i)^\s+:end:").unwrap();
@@ -313,6 +314,7 @@ impl Lexer {
                 title: caps["title"].into(),
                 archived: tags.contains(&"ARCHIVED".to_owned()),
                 tags,
+                completion_amount: caps.name("completion_amount").map(match_to_str)
             })
         } else if {
             matches!(
@@ -370,7 +372,7 @@ mod test {
         assert_eq!(
             Lexer::new("headings.org").lex(
                 r#"
-* TODO #[A] COMMENT test :abc:
+* TODO #[A] COMMENT test :abc: [3%]
     DEADLINE: tomorrow
     :drawer:
     something: nothing
