@@ -1,5 +1,5 @@
 use lazy_static::lazy_static;
-use regex::{Match, Regex};
+use fancy_regex::{Match, Regex};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Location {
@@ -139,7 +139,7 @@ pub struct Lexer {
 }
 
 lazy_static! {
-    static ref HEADING_REGEX: Regex = Regex::new(r#"(?<stars>\*+)\s+(?<todo_state>(?:TODO|DONE)\s+)?(?<priority>#\[[a-zA-Z0-9]\]\s+)?(?<title>[^\n]+?)(?<tags>\s+\:([a-zA-Z0-9_@#%]+\:)+)?(?:\s+\[(?<completion_amount>(?:\d+\/\d+)|(?:[\d.]+%))\])?$"#).unwrap();
+    static ref HEADING_REGEX: Regex = Regex::new(r#"(?<stars>\*+)\s+(?<todo_state>(?:(?!COMMENT)[A-Z]{2,})\s+)?(?<priority>#\[[a-zA-Z0-9]\]\s+)?(?<title>[^\n]+?)(?<tags>\s+\:([a-zA-Z0-9_@#%]+\:)+)?(?:\s+\[(?<cookie>(?:\d+\/\d+)|(?:[\d.]+%))\])?$"#).unwrap();
     static ref PLANNING_REGEX: Regex = Regex::new(r"^\s+(?<type>\w+):\s*(?<value>[^\n]+)").unwrap();
     static ref DRAWER_REGEX: Regex = Regex::new(r"^\s+:(?<name>[\w_-]+):").unwrap();
     static ref CLOSE_DRAWER_REGEX: Regex = Regex::new(r"(?i)^\s+:end:").unwrap();
@@ -235,7 +235,7 @@ impl Lexer {
         match &self.state {
             State::Default => self.handle_normal(line),
             State::Drawer { name, lines } => {
-                if let Some(_) = CLOSE_DRAWER_REGEX.captures(line) {
+                if let Ok(Some(_)) = CLOSE_DRAWER_REGEX.captures(line) {
                     let token = self.wrap(TokenKind::Drawer {
                         name: name.to_owned(),
                         contents: lines.to_owned(),
@@ -258,7 +258,7 @@ impl Lexer {
                 }
             }
             State::Block { _type, lines, args } => {
-                if let Some(caps) = CLOSE_BLOCK_REGEX.captures(line) {
+                if let Ok(Some(caps)) = CLOSE_BLOCK_REGEX.captures(line) {
                     if caps
                         .name("type")
                         .map(match_to_str)
@@ -294,7 +294,7 @@ impl Lexer {
     fn handle_normal(&mut self, line: &str) -> Option<Token> {
         if line.trim() == "" {
             self.wrap(TokenKind::EmptyLine)
-        } else if let Some(caps) = HEADING_REGEX.captures(line) {
+        } else if let Ok(Some(caps)) = HEADING_REGEX.captures(line) {
             let tags: Vec<String> = caps
                 .name("tags")
                 .map(|x| match_to_str(x).trim_matches(':').to_owned())
@@ -326,21 +326,21 @@ impl Lexer {
                     kind: TokenKind::Heading { .. },
                     ..
                 })
-            ) && matches!(PLANNING_REGEX.captures(line), Some(_))
+            ) && matches!(PLANNING_REGEX.captures(line), Ok(Some(_)))
         } {
-            let caps = PLANNING_REGEX.captures(line).unwrap();
+            let caps = PLANNING_REGEX.captures(line).unwrap().unwrap();
             self.wrap(TokenKind::Planning {
                 _type: caps["type"].into(),
                 value: caps["value"].into(),
             })
-        } else if let Some(caps) = DRAWER_REGEX.captures(line) {
+        } else if let Ok(Some(caps)) = DRAWER_REGEX.captures(line) {
             self.state = State::Drawer {
                 name: caps["name"].to_owned(),
                 lines: vec![],
             };
 
             None
-        } else if let Some(caps) = BLOCK_REGEX.captures(line) {
+        } else if let Ok(Some(caps)) = BLOCK_REGEX.captures(line) {
             self.state = State::Block {
                 _type: caps
                     .name("type")
@@ -351,7 +351,7 @@ impl Lexer {
             };
 
             None
-        } else if let Some(caps) = COMMENT_REGEX.captures(line) {
+        } else if let Ok(Some(caps)) = COMMENT_REGEX.captures(line) {
             self.wrap(TokenKind::Comment {
                 content: caps["content"].to_owned(),
             })
