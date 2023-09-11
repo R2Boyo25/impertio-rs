@@ -129,7 +129,6 @@ enum State {
 
 pub struct Lexer {
     current_location: Location,
-    last: Option<Token>,
     valid_for_initial_drawer: bool,
     state: State,
     tokens: Vec<Token>,
@@ -153,7 +152,6 @@ impl Lexer {
                 line: 1,
                 file: filename.into(),
             },
-            last: None,
             valid_for_initial_drawer: true,
             state: State::Default,
             tokens: vec![],
@@ -173,9 +171,8 @@ impl Lexer {
         for line in lines {
             if let Some(token) = self.handle_line(line) {
                 self.tokens.push(token.clone());
-                self.last = Some(token);
                 self.valid_for_initial_drawer = matches!(
-                    self.last,
+                    self.tokens.last(),
                     Some(Token {
                         kind: TokenKind::Keyword { .. },
                         ..
@@ -318,7 +315,7 @@ impl Lexer {
             })
         } else if {
             matches!(
-                self.last,
+                self.tokens.last(),
                 Some(Token {
                     kind: TokenKind::Planning { .. },
                     ..
@@ -361,7 +358,7 @@ impl Lexer {
             //  else, newline
             // else, new paragraph
 
-            match self.last.clone() {
+            match self.tokens.last().clone() {
                 Some(Token {
                     kind: TokenKind::Paragraph { content },
                     ..
@@ -375,10 +372,8 @@ impl Lexer {
                                 content.trim_end().to_owned() + "\n" + line
                             },
                         },
-                        ..self.last.clone().unwrap()
+                        ..self.tokens.last().unwrap().to_owned()
                     };
-
-                    self.last = self.tokens.last().map(|x| x.to_owned());
 
                     None
                 }
