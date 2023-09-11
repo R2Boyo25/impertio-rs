@@ -13,6 +13,7 @@ pub enum Node {
         todo_state: Option<String>,
         tags: Vec<String>
     },
+    Paragraph (String)
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -44,6 +45,9 @@ impl Document {
                         todo_state,
                         tags
                     })
+                },
+                TokenKind::Paragraph { content } => {
+                    slf.add_to_last(Node::Paragraph(content))
                 }
                 _ => todo!()
             }
@@ -81,7 +85,7 @@ mod test {
             Ok(Document {
                 metadata: HashMap::<String, String>::from_iter(vec![(
                     "title".into(),
-                    "this is the title".into()
+                    "hello".into()
                 )]),
                 sections: vec![]
             })

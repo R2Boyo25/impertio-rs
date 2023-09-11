@@ -113,10 +113,6 @@ fn match_to_str(match_: Match) -> String {
     match_.as_str().trim().into()
 }
 
-fn variant_eq<T>(a: &T, b: &T) -> bool {
-    std::mem::discriminant(a) == std::mem::discriminant(b)
-}
-
 #[derive(Debug, Eq, PartialEq)]
 enum State {
     Default,
@@ -136,6 +132,7 @@ pub struct Lexer {
     last: Option<Token>,
     valid_for_initial_drawer: bool,
     state: State,
+    tokens: Vec<Token>,
 }
 
 lazy_static! {
@@ -146,6 +143,7 @@ lazy_static! {
     static ref BLOCK_REGEX: Regex = Regex::new(r"(?i)^#\+BEGIN(?:_(?<type>[a-zA-Z]+))?:?\s*(?<args>(?:.+)?)$").unwrap();
     static ref CLOSE_BLOCK_REGEX: Regex = Regex::new(r"(?i)^#\+END(?:_(?<type>[a-zA-Z]+))").unwrap();
     static ref COMMENT_REGEX: Regex = Regex::new(r"^#\s+(?<content>.+)").unwrap();
+    static ref INDENTED: Regex = Regex::new(r"^\s+").unwrap();
 }
 
 impl Lexer {
@@ -158,6 +156,7 @@ impl Lexer {
             last: None,
             valid_for_initial_drawer: true,
             state: State::Default,
+            tokens: vec![],
         }
     }
 
@@ -170,11 +169,10 @@ impl Lexer {
 
     pub fn lex(&mut self, content: &str) -> Result<Vec<Token>, String> {
         let lines = content.split(|char| char == '\n');
-        let mut tokens: Vec<Token> = vec![];
 
         for line in lines {
             if let Some(token) = self.handle_line(line) {
-                tokens.push(token.clone());
+                self.tokens.push(token.clone());
                 self.last = Some(token);
                 self.valid_for_initial_drawer = matches!(
                     self.last,
@@ -195,7 +193,7 @@ impl Lexer {
             return Err("Unexpected EOF.".into());
         }
 
-        Ok(tokens
+        Ok(self.tokens
             .iter()
             .filter(|token| token.kind != TokenKind::EmptyLine)
             .map(|x| x.to_owned())
@@ -357,8 +355,32 @@ impl Lexer {
                 content: caps["content"].to_owned(),
             })
         } else {
-            println!("{}", line);
-            todo!()
+            // if last == paragraph, add to paragraph
+            //  if line.starts_with("\s"), merge lines
+            //  else, newline
+            // else, new paragraph
+
+            
+            match self.last.clone() {
+                Some(Token { kind: TokenKind::Paragraph{ content }, ..}) => {
+                    let len = self.tokens.len() - 1;
+                    self.tokens[len] = Token {
+                        kind: TokenKind::Paragraph {
+                            content: if let Ok(Some(_)) = INDENTED.captures(line) {
+                                content.trim_end().to_owned() + " " + line.trim_start()
+                            } else {
+                                content.trim_end().to_owned() + "\n" + line
+                            },
+                        },
+                        ..self.last.clone().unwrap()
+                    };
+
+                    self.last = self.tokens.last().map(|x| x.to_owned());
+                    
+                    None
+                },
+                _ => self.wrap(TokenKind::Paragraph { content: line.trim_start().into() })
+            }
         }
     }
 }
@@ -421,6 +443,39 @@ hewwo
                     },
                     location: Location {
                         file: "comments.org".into(),
+                        line: 4
+                    }
+                }
+            ])
+        )
+    }
+
+    #[test]
+    fn paragraphs() {
+        assert_eq!(
+            Lexer::new("paragraphs.org").lex(
+                r#"Hewwo!
+  How goes it?
+
+Yoooooooo
+noooo"#
+            ),
+            Ok(vec![
+                Token {
+                    kind: TokenKind::Paragraph {
+                        content: "Hewwo! How goes it?".into()
+                    },
+                    location: Location {
+                        file: "paragraphs.org".into(),
+                        line: 1
+                    }
+                },
+                Token {
+                    kind: TokenKind::Paragraph {
+                        content: "Yoooooooo\nnoooo".into()
+                    },
+                    location: Location {
+                        file: "paragraphs.org".into(),
                         line: 4
                     }
                 }

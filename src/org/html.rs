@@ -18,6 +18,9 @@ impl HtmlBuilder {
                 match node {
                     Node::Heading { level, title, .. } => {
                         self.builder.add_header(level, title);
+                    },
+                    Node::Paragraph (content) => {
+                        self.builder.add_paragraph(content.replace("\n", "<br/>"));
                     }
                 }
             }
@@ -34,10 +37,18 @@ mod test {
     use crate::org::{html::HtmlBuilder, Document};
     
     #[test]
-    fn test_heading() {
+    fn headings() {
         assert_eq!(
             HtmlBuilder::new().from_document(Document::parse("* Hello, World!", "heading.org").unwrap()),
             "<article><h1>Hello, World!</h1></article>"
+        )
+    }
+
+    #[test]
+    fn paragraphs() {
+        assert_eq!(
+            HtmlBuilder::new().from_document(Document::parse("Hello,\n  world!\nHewwo!\n\nHai!", "paragraphs.org").unwrap()),
+            "<article><p>Hello, world!<br/>Hewwo!</p><p>Hai!</p></article>"
         )
     }
 }
