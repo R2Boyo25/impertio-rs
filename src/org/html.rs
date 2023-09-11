@@ -82,7 +82,7 @@ Hai!"#,
                 )
                 .unwrap()
             ),
-            "<article><p>Hello, world!<br/>Hewwo!</p><p>Hai!</p></article>"
+            "<article><p>Hello, world!<br />Hewwo!</p><p>Hai!</p></article>"
         )
     }
 
@@ -92,7 +92,7 @@ Hai!"#,
             HtmlBuilder::new().from_document(Document::parse(r#"#+BEGIN_SRC python
 print('Hello, world!')
 #+END_SRC"#, "py_src.org").unwrap()),
-            "<article><pre><code class=\"hljs python\">print('Hello, world!')</code></pre></article>"
+            "<article><pre><code class=\"language-python\">print('Hello, world!')</code></pre></article>"
         )
     }
 }
