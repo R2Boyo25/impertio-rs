@@ -1,5 +1,5 @@
-use lazy_static::lazy_static;
 use fancy_regex::{Match, Regex};
+use lazy_static::lazy_static;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Location {
@@ -43,7 +43,7 @@ pub enum TokenKind {
         title: String,
         tags: Vec<String>,
         archived: bool,
-        completion_amount: Option<String>
+        completion_amount: Option<String>,
     },
 
     Planning {
@@ -193,7 +193,8 @@ impl Lexer {
             return Err("Unexpected EOF.".into());
         }
 
-        Ok(self.tokens
+        Ok(self
+            .tokens
             .iter()
             .filter(|token| token.kind != TokenKind::EmptyLine)
             .map(|x| x.to_owned())
@@ -313,7 +314,7 @@ impl Lexer {
                 title: caps["title"].into(),
                 archived: tags.contains(&"ARCHIVED".to_owned()),
                 tags,
-                completion_amount: caps.name("completion_amount").map(match_to_str)
+                completion_amount: caps.name("completion_amount").map(match_to_str),
             })
         } else if {
             matches!(
@@ -360,9 +361,11 @@ impl Lexer {
             //  else, newline
             // else, new paragraph
 
-            
             match self.last.clone() {
-                Some(Token { kind: TokenKind::Paragraph{ content }, ..}) => {
+                Some(Token {
+                    kind: TokenKind::Paragraph { content },
+                    ..
+                }) => {
                     let len = self.tokens.len() - 1;
                     self.tokens[len] = Token {
                         kind: TokenKind::Paragraph {
@@ -376,10 +379,12 @@ impl Lexer {
                     };
 
                     self.last = self.tokens.last().map(|x| x.to_owned());
-                    
+
                     None
-                },
-                _ => self.wrap(TokenKind::Paragraph { content: line.trim_start().into() })
+                }
+                _ => self.wrap(TokenKind::Paragraph {
+                    content: line.trim_start().into(),
+                }),
             }
         }
     }
