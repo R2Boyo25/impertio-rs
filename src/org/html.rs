@@ -20,7 +20,7 @@ impl HtmlBuilder {
                         self.builder.add_header(level, title);
                     }
                     Node::Paragraph(content) => {
-                        self.builder.add_paragraph(content.replace("\n", "<br/>"));
+                        self.builder.add_paragraph(content.replace("\n", "<br />"));
                     }
                     Node::LesserBlock {
                         type_,
@@ -32,12 +32,12 @@ impl HtmlBuilder {
                                 self.builder.add_preformatted(format!(
                                     "<code class=\"hljs {}\">{}</code>",
                                     args[0],
-                                    contents.replace("\n", "<br/>")
+                                    contents.replace("\n", "<br />")
                                 ));
                             } else {
                                 self.builder.add_preformatted(format!(
                                     "<code>{}</code>",
-                                    contents.replace("\n", "<br/>")
+                                    contents.replace("\n", "<br />")
                                 ));
                             }
                         }
