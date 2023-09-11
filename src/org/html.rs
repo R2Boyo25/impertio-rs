@@ -30,7 +30,7 @@ impl HtmlBuilder {
                         "src" => {
                             if args.len() > 0 {
                                 self.builder.add_preformatted(format!(
-                                    "<code class=\"hljs {}\">{}</code>",
+                                    "<code class=\"language-{}\">{}</code>",
                                     args[0],
                                     contents.replace("\n", "<br />")
                                 ));

@@ -19,3 +19,4 @@
 - [ ] standalone
 - [ ] strings
 - [ ] escaping
+* TODO some sort of language name mapping for HLJS
