@@ -2,7 +2,20 @@
 * TODO support elements in Greater blocks and non-property drawers [0/2]
 - [ ] Greater blocks
 - [ ] Non-property drawers
-* TODO support the TODO state cookies at the end of a heading [0/2]
+* TODO support the TODO state cookies at the end of a heading [2/2]
   https://orgmode.org/manual/Checkboxes.html
-- [ ] ~[0/2]~
-- [ ] ~[0%]~
+- [X] ~[0/2]~
+- [X] ~[0%]~
+* TODO strip equal amounts of leading whitespace from lesser blocks
+- Emacs adds extra indentation for some reason
+
+#+BEGIN_SRC python
+  print("see?")
+
+  print("it does.")
+#+END_SRC
+* TODO actual block argparsing [0/4]
+- [ ] keywords
+- [ ] standalone
+- [ ] strings
+- [ ] escaping

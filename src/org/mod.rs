@@ -13,7 +13,12 @@ pub enum Node {
         todo_state: Option<String>,
         tags: Vec<String>
     },
-    Paragraph (String)
+    Paragraph (String),
+    LesserBlock {
+        type_: String,
+        args: Vec<String>,
+        contents: String,
+    },
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -48,6 +53,13 @@ impl Document {
                 },
                 TokenKind::Paragraph { content } => {
                     slf.add_to_last(Node::Paragraph(content))
+                },
+                TokenKind::LesserBlock { _type, contents, args } => {
+                    slf.add_to_last(Node::LesserBlock {
+                        args: args.split(" ").map(|x| x.to_owned()).collect::<Vec<String>>(),
+                        contents: contents.join("\n"),
+                        type_: _type
+                    });
                 }
                 _ => todo!()
             }
@@ -113,5 +125,26 @@ mod test {
                 ]
             })
         )
+    }
+
+    #[test]
+    fn py_src() {
+        assert_eq!(
+            Document::parse("#+BEGIN_SRC python\nprint('Hello, world!')\n#+END_SRC", "py_hello.org"),
+            Ok(Document {
+                metadata: HashMap::new(),
+                sections: vec![
+                    Section {
+                        nodes: vec![
+                            Node::LesserBlock {
+                                type_: "src".into(),
+                                args: vec!["python".into()],
+                                contents: "print('Hello, world!')".into()
+                            }
+                        ]
+                    }
+                ]
+            })
+        );
     }
 }
