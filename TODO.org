@@ -26,3 +26,4 @@ Nevermind.
 * TODO Template directory support [0/2]
 - [ ] discovery
 - [ ] registering various relative paths for names for the file
+* TODO ~sitemap.xml~ generation

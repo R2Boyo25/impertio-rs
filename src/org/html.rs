@@ -47,7 +47,7 @@ impl HtmlBuilder {
                     },
                     Node::Table { rows } => {
                         self.builder.add_table(Table::from(rows));
-                    },
+                    }
                 }
             }
         }

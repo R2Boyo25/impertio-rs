@@ -95,7 +95,6 @@ pub enum TokenKind {
         args: String,
         contents: Vec<String>,
     },
-
     /*
     /// \[(?label:[a-zA-Z0-9_-])\]: (?contents:.+)
     /// It ends at the next footnote definition, the next heading, two consecutive blank lines, or the end of buffer.
@@ -370,22 +369,29 @@ impl Lexer {
                     let len = self.tokens.len() - 1;
 
                     let mut tmp_rows = rows.to_owned();
-                    tmp_rows.push(line.trim().split("|").map(|x| x.trim().to_owned()).collect::<Vec<_>>());
-                    
+                    tmp_rows.push(
+                        line.trim()
+                            .split("|")
+                            .map(|x| x.trim().to_owned())
+                            .collect::<Vec<_>>(),
+                    );
+
                     self.tokens[len] = Token {
-                        kind: TokenKind::Table {
-                            rows: tmp_rows,
-                        },
+                        kind: TokenKind::Table { rows: tmp_rows },
                         ..self.tokens.last().unwrap().to_owned()
                     };
 
                     None
                 }
                 _ => self.wrap(TokenKind::Table {
-                    rows: vec![line.trim().split("|").map(|x| x.trim().to_owned()).collect::<Vec<_>>()],
+                    rows: vec![line
+                        .trim()
+                        .split("|")
+                        .map(|x| x.trim().to_owned())
+                        .collect::<Vec<_>>()],
                 }),
             }
-        } else { 
+        } else {
             // if last == paragraph, add to paragraph
             //  if line.starts_with("\s"), merge lines
             //  else, newline

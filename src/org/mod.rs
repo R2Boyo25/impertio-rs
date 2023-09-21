@@ -22,8 +22,8 @@ pub enum Node {
         contents: Inner,
     },
     Table {
-        rows: Vec<Vec<Inner>>
-    }
+        rows: Vec<Vec<Inner>>,
+    },
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -74,16 +74,12 @@ impl Document {
                         contents: contents.join("\n"),
                         type_: _type,
                     });
-                },
-                TokenKind::Table { rows } => {
-                    slf.add_to_last(Node::Table {
-                        rows
-                    })
-                },
+                }
+                TokenKind::Table { rows } => slf.add_to_last(Node::Table { rows }),
                 TokenKind::Keyword { name, content } => {
                     slf.metadata.insert(name, content);
-                },
-                TokenKind::Comment { .. } => {},
+                }
+                TokenKind::Comment { .. } => {}
                 _ => todo!(),
             }
         }
@@ -104,7 +100,10 @@ impl Document {
     }
 
     pub fn parse_file(filename: &str) -> Result<Self, String> {
-        Self::parse(&std::fs::read_to_string(filename).map_err(|_| "IO error of some kind".to_owned())?, filename)
+        Self::parse(
+            &std::fs::read_to_string(filename).map_err(|_| "IO error of some kind".to_owned())?,
+            filename,
+        )
     }
 
     pub fn to_html(&self) -> String {
@@ -126,9 +125,7 @@ mod test {
                     "title".into(),
                     "hello".into()
                 )]),
-                sections: vec![
-                    Section {nodes: vec![]}
-                ]
+                sections: vec![Section { nodes: vec![] }]
             })
         );
     }

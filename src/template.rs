@@ -1,14 +1,17 @@
-use std::{path::{Path, PathBuf}, collections::HashMap};
-use tera::{Tera, Context};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
+use tera::{Context, Tera};
 
 pub struct Templates {
-    dir: PathBuf
+    dir: PathBuf,
 }
 
 impl Templates {
-    pub fn new(data_dir: &Path) -> Self {       
+    pub fn new(data_dir: &Path) -> Self {
         Self {
-            dir: data_dir.to_owned()
+            dir: data_dir.to_owned(),
         }
     }
 
@@ -17,33 +20,54 @@ impl Templates {
     fn create_tera(files: Vec<&Path>, dirs: Vec<&Path>) -> Result<Tera, tera::Error> {
         let mut tera: Tera = Tera::default();
 
-        tera.add_template_files(files.iter().map(|path| (*path, path.file_name().unwrap().to_str())).collect::<Vec<(&Path, Option<&str>)>>())?;
+        tera.add_template_files(
+            files
+                .iter()
+                .map(|path| (*path, path.file_name().unwrap().to_str()))
+                .collect::<Vec<(&Path, Option<&str>)>>(),
+        )?;
         for dir in dirs {
             let mut pb = dir.to_owned();
             pb.push("**");
             pb.push("*");
-            
+
             tera.extend(&Tera::parse(pb.to_str().unwrap())?)?;
         }
 
         tera.autoescape_on(vec![]); // I trust the page-writer not to XSS themself with a static site.
-        
+
         Ok(tera)
     }
 
     /// Render a page.
-    pub fn render(&self, template: &str, file: &Path, contents: &str, ctx: Option<HashMap<&str, String>>) -> Result<String, tera::Error> {
+    pub fn render(
+        &self,
+        template: &str,
+        file: &Path,
+        contents: &str,
+        ctx: Option<HashMap<&str, String>>,
+    ) -> Result<String, tera::Error> {
         let mut context: Context = Context::new();
         context.insert("content", contents);
 
         if let Some(ctx) = ctx {
-           for (key, value) in ctx.iter() {
-               context.insert(*key, value);
-           }
+            for (key, value) in ctx.iter() {
+                context.insert(*key, value);
+            }
         }
 
-        let tera = Self::create_tera(Self::find_upwards(file.parent().expect("Somehow the parent doesn't exist."), "root.html", Some(&self.dir)).iter().map(|path| path.as_path()).collect(), vec![])?;
-        
+        let tera = Self::create_tera(
+            Self::find_upwards(
+                file.parent().expect("Somehow the parent doesn't exist."),
+                "root.html",
+                Some(&self.dir),
+            )
+            .iter()
+            .map(|path| path.as_path())
+            .collect(),
+            vec![],
+        )?;
+
         tera.render(template, &context)
     }
 
@@ -57,9 +81,9 @@ impl Templates {
                 found.push(Self::concat_pathbuf(&dir, entry_name));
             }
 
-            if let Some(parent) = dir.parent() {               
+            if let Some(parent) = dir.parent() {
                 dir = parent.to_owned();
-                
+
                 if dir.parent() == until {
                     break;
                 }
@@ -81,14 +105,27 @@ impl Templates {
 
 #[cfg(test)]
 mod test {
-    use std::{path::{PathBuf, Path}, str::FromStr};
+    use std::{
+        path::{Path, PathBuf},
+        str::FromStr,
+    };
 
     use crate::template::Templates;
-    
+
     #[test]
     fn test() {
         let templates = Templates::new(&Path::new("data"));
 
-        assert_eq!(templates.render("root.html", &Path::new("data/index.org"), "<h1>This is a test!</h1>").unwrap(), "<html>\n  <head></head>\n  <body><h1>This is a test!</h1></body>\n</html>\n".to_owned())
+        assert_eq!(
+            templates
+                .render(
+                    "root.html",
+                    &Path::new("data/index.org"),
+                    "<h1>This is a test!</h1>"
+                )
+                .unwrap(),
+            "<html>\n  <head></head>\n  <body><h1>This is a test!</h1></body>\n</html>\n"
+                .to_owned()
+        )
     }
 }
