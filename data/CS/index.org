@@ -1,2 +1,4 @@
-#+TITLE: CS
+#+TITLE: Computer Science
 #+AUTHOR: Kazani
+
+test

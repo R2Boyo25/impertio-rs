@@ -5,11 +5,13 @@ mod lex;
 
 use lex::{Lexer, TokenKind};
 
+type Inner = String;
+
 #[derive(Debug, Eq, PartialEq)]
 pub enum Node {
     Heading {
         level: u8,
-        title: String,
+        title: Inner,
         todo_state: Option<String>,
         tags: Vec<String>,
     },
@@ -17,8 +19,11 @@ pub enum Node {
     LesserBlock {
         type_: String,
         args: Vec<String>,
-        contents: String,
+        contents: Inner,
     },
+    Table {
+        rows: Vec<Vec<Inner>>
+    }
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -69,7 +74,16 @@ impl Document {
                         contents: contents.join("\n"),
                         type_: _type,
                     });
-                }
+                },
+                TokenKind::Table { rows } => {
+                    slf.add_to_last(Node::Table {
+                        rows
+                    })
+                },
+                TokenKind::Keyword { name, content } => {
+                    slf.metadata.insert(name, content);
+                },
+                TokenKind::Comment { .. } => {},
                 _ => todo!(),
             }
         }
@@ -89,8 +103,12 @@ impl Document {
         }
     }
 
-    pub fn parse_file(filename: &str) -> Self {
-        todo!();
+    pub fn parse_file(filename: &str) -> Result<Self, String> {
+        Self::parse(&std::fs::read_to_string(filename).map_err(|_| "IO error of some kind".to_owned())?, filename)
+    }
+
+    pub fn to_html(&self) -> String {
+        super::org::html::HtmlBuilder::new().from_document(self)
     }
 }
 
@@ -100,7 +118,7 @@ mod test {
     use std::collections::HashMap;
 
     #[test]
-    fn test_parser() {
+    fn title() {
         assert_eq!(
             Document::parse("#+TITLE: hello", "hello.org"),
             Ok(Document {
@@ -108,7 +126,9 @@ mod test {
                     "title".into(),
                     "hello".into()
                 )]),
-                sections: vec![]
+                sections: vec![
+                    Section {nodes: vec![]}
+                ]
             })
         );
     }

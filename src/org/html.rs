@@ -1,23 +1,23 @@
 use crate::org::{Document, Node};
-use build_html::{Container, ContainerType, Html, HtmlContainer};
+use build_html::{Container, ContainerType, Html, HtmlContainer, Table};
 
-struct HtmlBuilder {
+pub struct HtmlBuilder {
     builder: Container,
 }
 
 impl HtmlBuilder {
     pub fn new() -> Self {
         Self {
-            builder: Container::new(ContainerType::Article),
+            builder: Container::new(ContainerType::Div).with_attributes(vec![("class", "article")]),
         }
     }
 
-    pub fn from_document(&mut self, doc: Document) -> String {
-        for section in doc.sections {
-            for node in section.nodes {
+    pub fn from_document(&mut self, doc: &Document) -> String {
+        for section in &doc.sections {
+            for node in &section.nodes {
                 match node {
                     Node::Heading { level, title, .. } => {
-                        self.builder.add_header(level, title);
+                        self.builder.add_header(*level, title);
                     }
                     Node::Paragraph(content) => {
                         self.builder.add_paragraph(content.replace("\n", "<br />"));
@@ -45,6 +45,9 @@ impl HtmlBuilder {
                             todo!();
                         }
                     },
+                    Node::Table { rows } => {
+                        self.builder.add_table(Table::from(rows));
+                    },
                 }
             }
         }
@@ -63,7 +66,7 @@ mod test {
     fn headings() {
         assert_eq!(
             HtmlBuilder::new()
-                .from_document(Document::parse("* Hello, World!", "heading.org").unwrap()),
+                .from_document(&Document::parse("* Hello, World!", "heading.org").unwrap()),
             "<article><h1>Hello, World!</h1></article>"
         )
     }
@@ -72,7 +75,7 @@ mod test {
     fn paragraphs() {
         assert_eq!(
             HtmlBuilder::new().from_document(
-                Document::parse(
+                &Document::parse(
                     r#"Hello,
   world!
 Hewwo!
@@ -89,10 +92,21 @@ Hai!"#,
     #[test]
     fn py_src() {
         assert_eq!(
-            HtmlBuilder::new().from_document(Document::parse(r#"#+BEGIN_SRC python
+            HtmlBuilder::new().from_document(&Document::parse(r#"#+BEGIN_SRC python
 print('Hello, world!')
 #+END_SRC"#, "py_src.org").unwrap()),
             "<article><pre><code class=\"language-python\">print('Hello, world!')</code></pre></article>"
+        )
+    }
+
+    #[test]
+    fn table() {
+        assert_eq!(
+            HtmlBuilder::new().from_document(&Document::parse(r#"
+| a | b | c |
+| 1 | 2 | 3 |
+"#, "table.org").unwrap()),
+            "<article><table><thead></thead><tbody><tr><td></td><td>a</td><td>b</td><td>c</td><td></td></tr><tr><td></td><td>1</td><td>2</td><td>3</td><td></td></tr></tbody></table></article>"
         )
     }
 }

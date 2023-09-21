@@ -26,5 +26,7 @@ fn main() {
     log::info!("Beginning to process `{}`", args.source);
     log::info!("Outputting to `{}`", args.dest);
 
-    //impertio::files::get_files(args.source);
+    impertio::files::FileHandler::new(&args.source).handle_files(args.dest, args.source);
+
+    log::info!("Done.");
 }

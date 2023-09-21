@@ -27,8 +27,9 @@ pub enum TokenKind {
     },
 
     /// | cell | cell | cell |
-    TableRow {
-        cells: Vec<String>,
+    /// | cell | cell | cell |
+    Table {
+        rows: Vec<Vec<String>>,
     },
 
     /// (?stars:\*+) (?todo_state:(?:TODO)|(?:DONE))? (?priority:#\[[a-zA-Z0-9]\])? (?title:[^\n]+) (?tags:\:([a-zA-Z0-9_@#%]\:)+)
@@ -95,12 +96,13 @@ pub enum TokenKind {
         contents: Vec<String>,
     },
 
+    /*
     /// \[(?label:[a-zA-Z0-9_-])\]: (?contents:.+)
     /// It ends at the next footnote definition, the next heading, two consecutive blank lines, or the end of buffer.
     FootNote {
         label: String,
         contents: String,
-    },
+    },*/
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -143,6 +145,8 @@ lazy_static! {
     static ref CLOSE_BLOCK_REGEX: Regex = Regex::new(r"(?i)^#\+END(?:_(?<type>[a-zA-Z]+))").unwrap();
     static ref COMMENT_REGEX: Regex = Regex::new(r"^#\s+(?<content>.+)").unwrap();
     static ref INDENTED: Regex = Regex::new(r"^\s+").unwrap();
+    static ref TABLE_ROW: Regex = Regex::new(r"^(?<cells>\|.+)+\|?").unwrap();
+    static ref KEYWORD: Regex = Regex::new(r"^#\+(?<name>[a-zA-Z_]+):\s*(?<value>.+)$").unwrap();
 }
 
 impl Lexer {
@@ -352,7 +356,36 @@ impl Lexer {
             self.wrap(TokenKind::Comment {
                 content: caps["content"].to_owned(),
             })
-        } else {
+        } else if let Ok(Some(caps)) = KEYWORD.captures(line) {
+            self.wrap(TokenKind::Keyword {
+                name: caps["name"].to_ascii_lowercase().into(),
+                content: caps["value"].into(),
+            })
+        } else if let Ok(Some(caps)) = TABLE_ROW.captures(line) {
+            match self.tokens.last().clone() {
+                Some(Token {
+                    kind: TokenKind::Table { rows },
+                    ..
+                }) => {
+                    let len = self.tokens.len() - 1;
+
+                    let mut tmp_rows = rows.to_owned();
+                    tmp_rows.push(line.trim().split("|").map(|x| x.trim().to_owned()).collect::<Vec<_>>());
+                    
+                    self.tokens[len] = Token {
+                        kind: TokenKind::Table {
+                            rows: tmp_rows,
+                        },
+                        ..self.tokens.last().unwrap().to_owned()
+                    };
+
+                    None
+                }
+                _ => self.wrap(TokenKind::Table {
+                    rows: vec![line.trim().split("|").map(|x| x.trim().to_owned()).collect::<Vec<_>>()],
+                }),
+            }
+        } else { 
             // if last == paragraph, add to paragraph
             //  if line.starts_with("\s"), merge lines
             //  else, newline
