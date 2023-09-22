@@ -1,5 +1,3 @@
-use rayon::prelude::*;
-use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::io::Write;
 use std::path::{Path, PathBuf};
