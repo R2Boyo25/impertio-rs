@@ -120,11 +120,13 @@ enum State {
     Drawer {
         lines: Vec<String>,
         name: String,
+        start: Location
     },
     Block {
         _type: Option<String>,
         args: String,
         lines: Vec<String>,
+        start: Location
     },
 }
 
@@ -201,48 +203,63 @@ impl Lexer {
             .collect::<Vec<_>>())
     }
 
+    fn lstrip_equally(lines: Vec<String>) -> Vec<String> {
+        let shared_indent = lines.iter().map(|line| {
+            INDENTED.find(line).unwrap().map_or_else(|| 0, |mtch: Match| mtch.end())
+        }).reduce(std::cmp::min).unwrap();
+
+        lines.iter().map(|line| (&line[shared_indent..]).to_owned()).collect()
+    }
+
     fn construct_block(
         &self,
         type_: Option<String>,
         lines: Vec<String>,
         args: String,
+        start: Location
     ) -> Option<Token> {
-        match type_ {
-            Some(type_) => match type_.as_str() {
-                "comment" => self.wrap(TokenKind::Comment {
-                    content: lines.join("\n"),
-                }),
-                "src" | "verse" | "example" | "export" => self.wrap(TokenKind::LesserBlock {
-                    _type: type_,
-                    contents: lines,
+        Some(Token {
+            kind: match type_ {
+                Some(type_) => match type_.as_str() {
+                    "comment" => TokenKind::Comment {
+                        content: lines.join("\n"),
+                    },
+                    "src" | "verse" | "example" | "export" => TokenKind::LesserBlock {
+                        _type: type_,
+                        contents: Self::lstrip_equally(lines),
+                        args,
+                    },
+                    _ => TokenKind::GreaterBlock {
+                        _type: type_,
+                        contents: lines,
+                        args,
+                    },
+                },
+                None => TokenKind::DynBlock {
                     args,
-                }),
-                _ => self.wrap(TokenKind::GreaterBlock {
-                    _type: type_,
                     contents: lines,
-                    args,
-                }),
+                },
             },
-            None => self.wrap(TokenKind::DynBlock {
-                args,
-                contents: lines,
-            }),
-        }
+            location: start
+        })
     }
 
     fn handle_line(&mut self, line: &str) -> Option<Token> {
         match &self.state {
             State::Default => self.handle_normal(line),
-            State::Drawer { name, lines } => {
+            State::Drawer { name, lines, start } => {
                 if let Ok(Some(_)) = CLOSE_DRAWER_REGEX.captures(line) {
-                    let token = self.wrap(TokenKind::Drawer {
-                        name: name.to_owned(),
-                        contents: lines.to_owned(),
-                    });
+                    let token = Token {
+                        kind: TokenKind::Drawer {
+                            name: name.to_owned(),
+                            contents: lines.to_owned(),
+                        },
+                        location: start.clone()
+                    };
 
                     self.state = State::Default;
 
-                    token
+                    Some(token)
                 } else {
                     let mut tmp_lines: Vec<String> = lines.to_owned();
 
@@ -251,12 +268,13 @@ impl Lexer {
                     self.state = State::Drawer {
                         lines: tmp_lines,
                         name: name.to_owned(),
+                        start: start.to_owned()
                     };
 
                     None
                 }
             }
-            State::Block { _type, lines, args } => {
+            State::Block { _type, lines, args, start } => {
                 if let Ok(Some(caps)) = CLOSE_BLOCK_REGEX.captures(line) {
                     if caps
                         .name("type")
@@ -268,7 +286,7 @@ impl Lexer {
                     }
 
                     let token =
-                        self.construct_block(_type.to_owned(), lines.to_owned(), args.to_owned());
+                        self.construct_block(_type.to_owned(), lines.to_owned(), args.to_owned(), start.clone());
 
                     self.state = State::Default;
 
@@ -282,6 +300,7 @@ impl Lexer {
                         lines: tmp_lines,
                         _type: _type.to_owned(),
                         args: args.to_owned(),
+                        start: start.to_owned()
                     };
 
                     None
@@ -337,6 +356,7 @@ impl Lexer {
             self.state = State::Drawer {
                 name: caps["name"].to_owned(),
                 lines: vec![],
+                start: self.current_location.clone()
             };
 
             None
@@ -348,6 +368,7 @@ impl Lexer {
                     .map(|x| x.to_ascii_lowercase()),
                 args: caps["args"].to_owned(),
                 lines: vec![],
+                start: self.current_location.clone()
             };
 
             None
@@ -360,7 +381,7 @@ impl Lexer {
                 name: caps["name"].to_ascii_lowercase().into(),
                 content: caps["value"].into(),
             })
-        } else if let Ok(Some(caps)) = TABLE_ROW.captures(line) {
+        } else if TABLE_ROW.is_match(line).unwrap() {
             match self.tokens.last().clone() {
                 Some(Token {
                     kind: TokenKind::Table { rows },
@@ -473,7 +494,7 @@ hewwo
                     },
                     location: Location {
                         file: "comments.org".into(),
-                        line: 3
+                        line: 1
                     }
                 },
                 Token {
@@ -516,6 +537,31 @@ noooo"#
                     location: Location {
                         file: "paragraphs.org".into(),
                         line: 4
+                    }
+                }
+            ])
+        )
+    }
+
+    #[test]
+    fn lstrip_src() {
+        assert_eq!(
+            Lexer::new("src.org").lex(
+                r#"#+BEGIN_SRC py
+  normal
+    indented
+#+END_SRC"#
+            ),
+            Ok(vec![
+                Token {
+                    kind: TokenKind::LesserBlock {
+                        _type: "src".into(),
+                        contents: vec!["normal".into(), "  indented".into()],
+                        args: "py".into()
+                    },
+                    location: Location {
+                        file: "src.org".into(),
+                        line: 1
                     }
                 }
             ])
