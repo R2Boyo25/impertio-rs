@@ -108,6 +108,7 @@ mod test {
     use std::{
         path::{Path, PathBuf},
         str::FromStr,
+        collections::HashMap,
     };
 
     use crate::template::Templates;
@@ -121,10 +122,11 @@ mod test {
                 .render(
                     "root.html",
                     &Path::new("data/index.org"),
-                    "<h1>This is a test!</h1>"
+                    "<h1>This is a test!</h1>",
+                    Some(HashMap::from_iter(vec![("title", "yes".into())]))
                 )
                 .unwrap(),
-            "<html>\n  <head></head>\n  <body><h1>This is a test!</h1></body>\n</html>\n"
+            "<html>\n  <head><title>yes</title></head>\n  <body><h1>This is a test!</h1></body>\n</html>\n"
                 .to_owned()
         )
     }

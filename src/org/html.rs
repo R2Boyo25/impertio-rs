@@ -14,6 +14,10 @@ impl HtmlBuilder {
 
     pub fn from_document(&mut self, doc: &Document) -> String {
         for section in &doc.sections {
+            if section.commented {
+                continue;
+            }
+            
             for node in &section.nodes {
                 match node {
                     Node::Heading { level, title, .. } => {
@@ -67,7 +71,7 @@ mod test {
         assert_eq!(
             HtmlBuilder::new()
                 .from_document(&Document::parse("* Hello, World!", "heading.org").unwrap()),
-            "<article><h1>Hello, World!</h1></article>"
+            "<div class=\"article\"><h1>Hello, World!</h1></div>"
         )
     }
 
@@ -85,7 +89,7 @@ Hai!"#,
                 )
                 .unwrap()
             ),
-            "<article><p>Hello, world!<br />Hewwo!</p><p>Hai!</p></article>"
+            "<div class=\"article\"><p>Hello, world!<br />Hewwo!</p><p>Hai!</p></div>"
         )
     }
 
@@ -95,7 +99,7 @@ Hai!"#,
             HtmlBuilder::new().from_document(&Document::parse(r#"#+BEGIN_SRC python
 print('Hello, world!')
 #+END_SRC"#, "py_src.org").unwrap()),
-            "<article><pre><code class=\"language-python\">print('Hello, world!')</code></pre></article>"
+            "<div class=\"article\"><pre><code class=\"language-python\">print('Hello, world!')</code></pre></div>"
         )
     }
 
@@ -106,7 +110,7 @@ print('Hello, world!')
 | a | b | c |
 | 1 | 2 | 3 |
 "#, "table.org").unwrap()),
-            "<article><table><thead></thead><tbody><tr><td></td><td>a</td><td>b</td><td>c</td><td></td></tr><tr><td></td><td>1</td><td>2</td><td>3</td><td></td></tr></tbody></table></article>"
+            "<div class=\"article\"><table><thead></thead><tbody><tr><td></td><td>a</td><td>b</td><td>c</td><td></td></tr><tr><td></td><td>1</td><td>2</td><td>3</td><td></td></tr></tbody></table></div>"
         )
     }
 }

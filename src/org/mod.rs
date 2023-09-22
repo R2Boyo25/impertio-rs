@@ -14,6 +14,7 @@ pub enum Node {
         title: Inner,
         todo_state: Option<String>,
         tags: Vec<String>,
+        commented: bool
     },
     Paragraph(String),
     LesserBlock {
@@ -29,6 +30,7 @@ pub enum Node {
 #[derive(Debug, Eq, PartialEq)]
 pub struct Section {
     pub nodes: Vec<Node>,
+    pub commented: bool
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -41,7 +43,7 @@ impl Document {
     pub fn parse(content: &str, filename: &str) -> Result<Self, String> {
         let mut slf = Self {
             metadata: HashMap::new(),
-            sections: vec![Section { nodes: vec![] }],
+            sections: vec![Section { nodes: vec![], commented: false }],
         };
 
         let lexed = Lexer::new(filename).lex(content)?;
@@ -53,12 +55,14 @@ impl Document {
                     todo_state,
                     title,
                     tags,
+                    commented,
                     ..
                 } => slf.add_to_last(Node::Heading {
                     level,
                     title,
                     todo_state,
                     tags,
+                    commented,
                 }),
                 TokenKind::Paragraph { content } => slf.add_to_last(Node::Paragraph(content)),
                 TokenKind::LesserBlock {
@@ -89,8 +93,8 @@ impl Document {
 
     fn add_to_last(&mut self, node: Node) {
         match node {
-            Node::Heading { .. } => {
-                self.sections.push(Section { nodes: vec![node] });
+            Node::Heading { commented, .. } => {
+                self.sections.push(Section { nodes: vec![node], commented });
             }
             _ => {
                 let len = self.sections.len() - 1;
@@ -125,7 +129,7 @@ mod test {
                     "title".into(),
                     "hello".into()
                 )]),
-                sections: vec![Section { nodes: vec![] }]
+                sections: vec![Section { nodes: vec![], commented: false }]
             })
         );
     }
@@ -137,14 +141,16 @@ mod test {
             Ok(Document {
                 metadata: HashMap::new(),
                 sections: vec![
-                    Section { nodes: vec![] },
+                    Section { nodes: vec![], commented: false },
                     Section {
                         nodes: vec![Node::Heading {
                             level: 1,
                             title: "test".into(),
                             todo_state: None,
-                            tags: vec![]
-                        }]
+                            tags: vec![],
+                            commented: false
+                        }],
+                        commented: false
                     }
                 ]
             })
@@ -165,7 +171,8 @@ mod test {
                         type_: "src".into(),
                         args: vec!["python".into()],
                         contents: "print('Hello, world!')".into()
-                    }]
+                    }],
+                    commented: false
                 }]
             })
         );
