@@ -120,13 +120,13 @@ enum State {
     Drawer {
         lines: Vec<String>,
         name: String,
-        start: Location
+        start: Location,
     },
     Block {
         _type: Option<String>,
         args: String,
         lines: Vec<String>,
-        start: Location
+        start: Location,
     },
 }
 
@@ -204,11 +204,21 @@ impl Lexer {
     }
 
     fn lstrip_equally(lines: Vec<String>) -> Vec<String> {
-        let shared_indent = lines.iter().map(|line| {
-            INDENTED.find(line).unwrap().map_or_else(|| 0, |mtch: Match| mtch.end())
-        }).reduce(std::cmp::min).unwrap();
+        let shared_indent = lines
+            .iter()
+            .map(|line| {
+                INDENTED
+                    .find(line)
+                    .unwrap()
+                    .map_or_else(|| 0, |mtch: Match| mtch.end())
+            })
+            .reduce(std::cmp::min)
+            .unwrap();
 
-        lines.iter().map(|line| (&line[shared_indent..]).to_owned()).collect()
+        lines
+            .iter()
+            .map(|line| (&line[shared_indent..]).to_owned())
+            .collect()
     }
 
     fn construct_block(
@@ -216,7 +226,7 @@ impl Lexer {
         type_: Option<String>,
         lines: Vec<String>,
         args: String,
-        start: Location
+        start: Location,
     ) -> Option<Token> {
         Some(Token {
             kind: match type_ {
@@ -240,7 +250,7 @@ impl Lexer {
                     contents: lines,
                 },
             },
-            location: start
+            location: start,
         })
     }
 
@@ -254,7 +264,7 @@ impl Lexer {
                             name: name.to_owned(),
                             contents: lines.to_owned(),
                         },
-                        location: start.clone()
+                        location: start.clone(),
                     };
 
                     self.state = State::Default;
@@ -268,13 +278,18 @@ impl Lexer {
                     self.state = State::Drawer {
                         lines: tmp_lines,
                         name: name.to_owned(),
-                        start: start.to_owned()
+                        start: start.to_owned(),
                     };
 
                     None
                 }
             }
-            State::Block { _type, lines, args, start } => {
+            State::Block {
+                _type,
+                lines,
+                args,
+                start,
+            } => {
                 if let Ok(Some(caps)) = CLOSE_BLOCK_REGEX.captures(line) {
                     if caps
                         .name("type")
@@ -285,8 +300,12 @@ impl Lexer {
                         panic!("Closing a block of a different type.")
                     }
 
-                    let token =
-                        self.construct_block(_type.to_owned(), lines.to_owned(), args.to_owned(), start.clone());
+                    let token = self.construct_block(
+                        _type.to_owned(),
+                        lines.to_owned(),
+                        args.to_owned(),
+                        start.clone(),
+                    );
 
                     self.state = State::Default;
 
@@ -300,7 +319,7 @@ impl Lexer {
                         lines: tmp_lines,
                         _type: _type.to_owned(),
                         args: args.to_owned(),
-                        start: start.to_owned()
+                        start: start.to_owned(),
                     };
 
                     None
@@ -356,7 +375,7 @@ impl Lexer {
             self.state = State::Drawer {
                 name: caps["name"].to_owned(),
                 lines: vec![],
-                start: self.current_location.clone()
+                start: self.current_location.clone(),
             };
 
             None
@@ -368,7 +387,7 @@ impl Lexer {
                     .map(|x| x.to_ascii_lowercase()),
                 args: caps["args"].to_owned(),
                 lines: vec![],
-                start: self.current_location.clone()
+                start: self.current_location.clone(),
             };
 
             None
@@ -552,19 +571,17 @@ noooo"#
     indented
 #+END_SRC"#
             ),
-            Ok(vec![
-                Token {
-                    kind: TokenKind::LesserBlock {
-                        _type: "src".into(),
-                        contents: vec!["normal".into(), "  indented".into()],
-                        args: "py".into()
-                    },
-                    location: Location {
-                        file: "src.org".into(),
-                        line: 1
-                    }
+            Ok(vec![Token {
+                kind: TokenKind::LesserBlock {
+                    _type: "src".into(),
+                    contents: vec!["normal".into(), "  indented".into()],
+                    args: "py".into()
+                },
+                location: Location {
+                    file: "src.org".into(),
+                    line: 1
                 }
-            ])
+            }])
         )
     }
 }

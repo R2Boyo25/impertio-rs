@@ -17,7 +17,7 @@ impl HtmlBuilder {
             if section.commented {
                 continue;
             }
-            
+
             for node in &section.nodes {
                 match node {
                     Node::Heading { level, title, .. } => {

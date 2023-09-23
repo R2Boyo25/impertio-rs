@@ -14,7 +14,7 @@ pub enum Node {
         title: Inner,
         todo_state: Option<String>,
         tags: Vec<String>,
-        commented: bool
+        commented: bool,
     },
     Paragraph(String),
     LesserBlock {
@@ -30,7 +30,7 @@ pub enum Node {
 #[derive(Debug, Eq, PartialEq)]
 pub struct Section {
     pub nodes: Vec<Node>,
-    pub commented: bool
+    pub commented: bool,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -43,7 +43,10 @@ impl Document {
     pub fn parse(content: &str, filename: &str) -> Result<Self, String> {
         let mut slf = Self {
             metadata: HashMap::new(),
-            sections: vec![Section { nodes: vec![], commented: false }],
+            sections: vec![Section {
+                nodes: vec![],
+                commented: false,
+            }],
         };
 
         let lexed = Lexer::new(filename).lex(content)?;
@@ -94,7 +97,10 @@ impl Document {
     fn add_to_last(&mut self, node: Node) {
         match node {
             Node::Heading { commented, .. } => {
-                self.sections.push(Section { nodes: vec![node], commented });
+                self.sections.push(Section {
+                    nodes: vec![node],
+                    commented,
+                });
             }
             _ => {
                 let len = self.sections.len() - 1;
@@ -129,7 +135,10 @@ mod test {
                     "title".into(),
                     "hello".into()
                 )]),
-                sections: vec![Section { nodes: vec![], commented: false }]
+                sections: vec![Section {
+                    nodes: vec![],
+                    commented: false
+                }]
             })
         );
     }
@@ -141,7 +150,10 @@ mod test {
             Ok(Document {
                 metadata: HashMap::new(),
                 sections: vec![
-                    Section { nodes: vec![], commented: false },
+                    Section {
+                        nodes: vec![],
+                        commented: false
+                    },
                     Section {
                         nodes: vec![Node::Heading {
                             level: 1,
