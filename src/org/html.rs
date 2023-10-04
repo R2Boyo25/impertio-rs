@@ -44,7 +44,12 @@ impl HtmlBuilder {
                                     contents.replace("\n", "<br />")
                                 ));
                             }
-                        }
+                        },
+                        "export" => {
+                            if args.last() == Some(&"html".to_owned()) {
+                                self.builder.add_raw(contents);
+                            }
+                        },
                         _ => {
                             todo!();
                         }
