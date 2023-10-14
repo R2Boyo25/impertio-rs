@@ -6,6 +6,8 @@ Look, I can type :sparkles:paragraphs:sparkles:
 
 ** TODO It's magical, isn't it?
 
+* TODO COMMENT something
+
 #+BEGIN_EXPORT html
-<div>E</div>
+<div>I now support arbitrary HTML in my blog generator</div>
 #+END_EXPORT

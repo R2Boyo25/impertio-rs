@@ -36,12 +36,12 @@ impl HtmlBuilder {
                                 self.builder.add_preformatted(format!(
                                     "<code class=\"language-{}\">{}</code>",
                                     args[0],
-                                    contents.replace("\n", "<br />")
+                                    contents
                                 ));
                             } else {
                                 self.builder.add_preformatted(format!(
                                     "<code>{}</code>",
-                                    contents.replace("\n", "<br />")
+                                    contents
                                 ));
                             }
                         },

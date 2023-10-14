@@ -189,4 +189,18 @@ mod test {
             })
         );
     }
+
+    #[test]
+    fn comment_heading() {
+        assert_eq!(
+            Document::parse(
+                "* TODO COMMENT something\n\nsome text",
+                "comment_heading.org"
+            ),
+            Ok(Document {
+                metadata: HashMap::new(),
+                sections: vec![]
+            })
+        )
+    }
 }

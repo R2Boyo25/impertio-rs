@@ -27,3 +27,7 @@
 - [ ] discovery
 - [ ] registering various relative paths for names for the file
 ** TODO Allow selecting templates
+* TODO switch to tree-sitter for server-side syntax highlighting
+- https://github.com/tree-sitter/tree-sitter/tree/master/lib/binding_rust
+- https://docs.rs/crate/highlighting/latest
+- why? https://toast.al/posts/softwarecraft/2023-07-28_client-side-syntax-highlighting-must-stop

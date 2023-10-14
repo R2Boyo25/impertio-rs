@@ -257,77 +257,81 @@ impl Lexer {
     fn handle_line(&mut self, line: &str) -> Option<Token> {
         match &self.state {
             State::Default => self.handle_normal(line),
-            State::Drawer { name, lines, start } => {
-                if let Ok(Some(_)) = CLOSE_DRAWER_REGEX.captures(line) {
-                    let token = Token {
-                        kind: TokenKind::Drawer {
-                            name: name.to_owned(),
-                            contents: lines.to_owned(),
-                        },
-                        location: start.clone(),
-                    };
-
-                    self.state = State::Default;
-
-                    Some(token)
-                } else {
-                    let mut tmp_lines: Vec<String> = lines.to_owned();
-
-                    tmp_lines.push(line.to_owned());
-
-                    self.state = State::Drawer {
-                        lines: tmp_lines,
-                        name: name.to_owned(),
-                        start: start.to_owned(),
-                    };
-
-                    None
-                }
-            }
+            State::Drawer { name, lines, start } => self.handle_drawer(line, name.to_owned(), lines.to_owned(), start.to_owned()),
             State::Block {
                 _type,
                 lines,
                 args,
                 start,
-            } => {
-                if let Ok(Some(caps)) = CLOSE_BLOCK_REGEX.captures(line) {
-                    if caps
-                        .name("type")
-                        .map(match_to_str)
-                        .map(|x| x.to_ascii_lowercase())
-                        != *_type
-                    {
-                        panic!("Closing a block of a different type.")
-                    }
-
-                    let token = self.construct_block(
-                        _type.to_owned(),
-                        lines.to_owned(),
-                        args.to_owned(),
-                        start.clone(),
-                    );
-
-                    self.state = State::Default;
-
-                    token
-                } else {
-                    let mut tmp_lines: Vec<String> = lines.to_owned();
-
-                    tmp_lines.push(line.to_owned());
-
-                    self.state = State::Block {
-                        lines: tmp_lines,
-                        _type: _type.to_owned(),
-                        args: args.to_owned(),
-                        start: start.to_owned(),
-                    };
-
-                    None
-                }
-            }
+            } => self.handle_block(line, _type.to_owned(), args.to_owned(), lines.to_owned(), start.to_owned())
         }
     }
 
+    fn handle_drawer(&mut self, line: &str, name: String, lines: Vec<String>, start: Location) -> Option<Token> {
+        if let Ok(Some(_)) = CLOSE_DRAWER_REGEX.captures(line) {
+            let token = Token {
+                kind: TokenKind::Drawer {
+                    name: name.to_owned(),
+                    contents: lines.to_owned(),
+                },
+                location: start.clone(),
+            };
+
+            self.state = State::Default;
+
+            Some(token)
+        } else {
+            let mut tmp_lines: Vec<String> = lines.to_owned();
+
+            tmp_lines.push(line.to_owned());
+
+            self.state = State::Drawer {
+                lines: tmp_lines,
+                name: name.to_owned(),
+                start: start.to_owned(),
+            };
+
+            None
+        }
+    }
+
+    fn handle_block(&mut self, line: &str, _type: Option<String>, args: String, lines: Vec<String>, start: Location) -> Option<Token> {
+        if let Ok(Some(caps)) = CLOSE_BLOCK_REGEX.captures(line) {
+            if caps
+                .name("type")
+                .map(match_to_str)
+                .map(|x| x.to_ascii_lowercase())
+                != _type
+            {
+                panic!("Closing a block of a different type.")
+            }
+
+            let token = self.construct_block(
+                _type,
+                lines,
+                args,
+                start.clone(),
+            );
+
+            self.state = State::Default;
+
+            token
+        } else {
+            let mut tmp_lines: Vec<String> = lines;
+
+            tmp_lines.push(line.to_owned());
+
+            self.state = State::Block {
+                lines: tmp_lines,
+                _type,
+                args,
+                start,
+            };
+
+            None
+        }
+    }
+    
     fn handle_normal(&mut self, line: &str) -> Option<Token> {
         if line.trim() == "" {
             self.wrap(TokenKind::EmptyLine)
@@ -432,11 +436,6 @@ impl Lexer {
                 }),
             }
         } else {
-            // if last == paragraph, add to paragraph
-            //  if line.starts_with("\s"), merge lines
-            //  else, newline
-            // else, new paragraph
-
             match self.tokens.last().clone() {
                 Some(Token {
                     kind: TokenKind::Paragraph { content },
