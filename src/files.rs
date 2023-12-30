@@ -1,8 +1,9 @@
+use crate::template::Templates;
+use sitemap_rs::url::Url;
+use sitemap_rs::url_set::UrlSet;
 use std::ffi::OsStr;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-//use std::process::Command;
-use crate::template::Templates;
 
 fn path_to_rel_path(root: PathBuf, path: PathBuf) -> PathBuf {
     match path.strip_prefix(root) {
@@ -14,27 +15,23 @@ fn path_to_rel_path(root: PathBuf, path: PathBuf) -> PathBuf {
     }
 }
 
-/*fn file_type(file: PathBuf) {
-    match String::from_utf8_lossy(Command::new("ls")
-        .arg(file)
-        .arg("--mime-type")
-        .output().unwrap().stdout).as_str() {
-            "image/png" => log::info!("image"),
-            "text/x-org" => log::info!("org-file")
-        }
-}*/
-
 fn filter_file(file: &PathBuf) -> bool {
     let filename = file.file_name().unwrap().to_str().unwrap();
 
     let is_backup = filename.ends_with("~");
     let is_buffer = filename.ends_with("#") && filename.starts_with("#");
 
-    file.is_file() && !is_buffer && !is_backup
+    file.is_file()
+        && !is_buffer
+        && !is_backup
+        && !file
+            .components()
+            .any(|s| AsRef::<OsStr>::as_ref(&s).to_str() == Some(".git"))
 }
 
 pub struct FileHandler {
     templates: Templates,
+    pages: Vec<Url>,
 }
 
 fn file_changed(old: &Path, new: &Path) -> std::io::Result<bool> {
@@ -52,12 +49,13 @@ impl FileHandler {
     pub fn new(data_dir: &str) -> Self {
         Self {
             templates: Templates::new(Path::new(data_dir)),
+            pages: vec![],
         }
     }
 
-    fn handle_file(&mut self, data_dir: PathBuf, root: PathBuf, rel_file: PathBuf) {
+    fn handle_file(&mut self, data_dir: PathBuf, root: PathBuf, rel_file: PathBuf) -> anyhow::Result<()> {
         let file: PathBuf = PathBuf::from_iter(vec![root.clone(), rel_file.clone()]);
-        let mut new_file: PathBuf = PathBuf::from_iter(vec![data_dir, rel_file]);
+        let mut new_file: PathBuf = PathBuf::from_iter(vec![data_dir, rel_file.clone()]);
 
         match file
             .extension()
@@ -71,10 +69,10 @@ impl FileHandler {
                 let mut source_file: PathBuf = new_file.clone();
                 source_file.set_extension("org");
 
-                if !file_changed(&file, &new_file).unwrap()
-                    && !file_changed(&file, &source_file).unwrap()
+                if !file_changed(&file, &new_file)?
+                    && !file_changed(&file, &source_file)?
                 {
-                    return;
+                    return Ok(());
                 }
 
                 match file
@@ -104,32 +102,47 @@ impl FileHandler {
                                 .map(|(key, value)| (key.as_str(), value.to_owned()))
                                 .collect(),
                         ),
-                    )
-                    .unwrap();
+                    )?;
 
-                log::info!("{}: {}", file.to_str().unwrap(), out);
+                log::debug!("{}: {}", file.to_str().unwrap(), out);
 
-                writeable(&new_file)
-                    .unwrap()
-                    .write_all(out.as_bytes())
-                    .unwrap();
-                writeable(&source_file)
-                    .unwrap()
-                    .write_all(std::fs::read(file).unwrap().as_slice())
-                    .unwrap();
-            }
-            "html" => (),
+                writeable(&new_file)?
+                    .write_all(out.as_bytes())?;
+                writeable(&source_file)?
+                    .write_all(std::fs::read(file.clone())?.as_slice())?;
+
+                match std::env::var("IMPERTIO_SITE_URL") {
+                    Ok(url) => {
+                        let mut url_path = rel_file.clone();
+                        url_path.set_extension("html");
+
+                        let mut builder = Url::builder(format!("{}/{}", url, url_path.display()));
+
+                        if let Ok(modtime) = std::fs::metadata(file)?.modified() {
+                            builder.last_modified(
+                                chrono::DateTime::<chrono::offset::Local>::from(modtime).into(),
+                            );
+                        }
+
+                        self.pages
+                            .push(builder.build().expect("failed a <url> validation"));
+
+                        Ok(())
+                    }
+                    _ => Ok(())
+                }
+            },
             _ => {
-                if !file_changed(&file, &new_file).unwrap() {
-                    return;
+                if !file_changed(&file, &new_file)? {
+                    return Ok(());
                 }
 
                 log::warn!("File {:?} not recognized. Copying as-is...", file);
 
-                writeable(&new_file)
-                    .unwrap()
-                    .write_all(std::fs::read(file).unwrap().as_slice())
-                    .unwrap();
+                writeable(&new_file)?
+                    .write_all(std::fs::read(file)?.as_slice())?;
+
+                Ok(())
             }
         }
     }
@@ -147,7 +160,16 @@ impl FileHandler {
                 data_path.clone(),
                 root_path.clone(),
                 path_to_rel_path(root_path.clone(), file),
-            )
+            ).unwrap()
+        }
+
+        if self.pages.len() > 0 {
+            let sitemap_path = format!("{}/sitemap.xml", data_path.clone().display());
+            log::info!("Generating `{}`", sitemap_path);
+            let sitemap_file = std::fs::File::create(sitemap_path)
+                .expect("Unable to write sitemap.xml");
+            let url_set = UrlSet::new(self.pages.clone()).expect("failed a <urlset> validation");
+            url_set.write(sitemap_file).unwrap();
         }
     }
 }

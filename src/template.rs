@@ -107,8 +107,7 @@ impl Templates {
 mod test {
     use std::{
         collections::HashMap,
-        path::{Path, PathBuf},
-        str::FromStr,
+        path::Path,
     };
 
     use crate::template::Templates;
