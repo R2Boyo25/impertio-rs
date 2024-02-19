@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 mod html;
 mod lex;
+pub mod inline;
 
 use build_html::{Container, ContainerType, Html, HtmlContainer};
 use lex::{Lexer, TokenKind};

@@ -106,6 +106,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 
 [[package]]
+name = "backtracking_iterator"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7cc08f721c8ceea7cf3dc8ae760798067be6e763f9e39d9b0b105bd9cda34f5d"
+
+[[package]]
 name = "base64"
 version = "0.21.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -619,6 +625,7 @@ name = "impertio"
 version = "0.1.2"
 dependencies = [
  "anyhow",
+ "backtracking_iterator",
  "build_html",
  "chrono",
  "clap",
@@ -634,6 +641,7 @@ dependencies = [
  "sitemap-rs",
  "syntect",
  "tera",
+ "unicode-segmentation",
  "walkdir",
 ]
 
@@ -1340,6 +1348,12 @@ name = "unicode-ident"
 version = "1.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3354b9ac3fae1ff6755cb6db53683adb661634f67557942dea4facebec0fee4b"
+
+[[package]]
+name = "unicode-segmentation"
+version = "1.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1dd624098567895118886609431a7c3b8f516e41d30e0643f03d94592a147e36"
 
 [[package]]
 name = "unsafe-libyaml"
