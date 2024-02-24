@@ -1,4 +1,5 @@
 use crate::template::Templates;
+use crate::handler::FileHandler;
 use sitemap_rs::url::Url;
 use sitemap_rs::url_set::UrlSet;
 use std::ffi::OsStr;
@@ -29,7 +30,7 @@ fn filter_file(file: &PathBuf) -> bool {
             .any(|s| AsRef::<OsStr>::as_ref(&s).to_str() == Some(".git"))
 }
 
-pub struct FileHandler {
+pub struct FileDispatcher {
     templates: Templates,
     pages: Vec<Url>,
 }
@@ -45,7 +46,7 @@ fn writeable(path: &Path) -> std::io::Result<std::fs::File> {
     File::create(path)
 }
 
-impl FileHandler {
+impl FileDispatcher {
     pub fn new(data_dir: &str) -> Self {
         Self {
             templates: Templates::new(Path::new(data_dir)),
