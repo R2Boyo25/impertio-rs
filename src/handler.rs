@@ -1,10 +1,11 @@
+use dyn_clone::{clone_trait_object, DynClone};
 use std::{
+    ffi::OsStr,
     io::Write,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
 };
 
-use crate::{files::FileDispatcher, metadata::Metadata, org::Document, template::Templates};
+use crate::{config::Config, metadata::Metadata, org::Document, template::Templates};
 
 fn file_changed(old: &Path, new: &Path) -> std::io::Result<bool> {
     Ok(!new.exists() || new.metadata()?.modified()? < old.metadata()?.modified()?)
@@ -17,38 +18,53 @@ fn writeable(path: &Path) -> std::io::Result<std::fs::File> {
     File::create(path)
 }
 
+#[derive(Clone, Debug)]
 pub struct FileContext {
-    relative_path: PathBuf,
-    source_path: PathBuf,
-    output_path: PathBuf,
-    site_url: String,
+    pub relative_path: PathBuf,
+    pub source_path: PathBuf,
+    pub output_path: PathBuf,
+    pub site_url: String,
+    pub ext: String,
 
-    templates: Templates
+    pub templates: Templates,
 }
 
 impl FileContext {
-    pub fn new(relative: &Path, source: &Path, output: &Path, templates: &Templates) -> Self {
+    pub fn new(
+        config: &Config,
+        relative: &Path,
+        source: &Path,
+        output: &Path,
+        templates: &Templates,
+    ) -> Self {
         Self {
             relative_path: relative.to_owned(),
             source_path: source.to_owned(),
             output_path: output.to_owned(),
-            site_url: std::env::var("IMPERTIO_SITE_URL").unwrap(),
-            templates: templates.clone()
+            ext: source
+                .extension()
+                .unwrap_or(&OsStr::new(""))
+                .to_str()
+                .unwrap_or("")
+                .to_string(),
+            site_url: config.site_url.clone(),
+            templates: templates.clone(),
         }
     }
 }
 
-pub trait FileHandler {
-    fn new(dispatcher: Arc<Mutex<FileDispatcher>>) -> Self
+pub trait FileHandler: DynClone {
+    fn new() -> Self
     where
         Self: Sized;
     fn handle_file(&mut self, ctx: FileContext) -> anyhow::Result<()>;
     fn extract_metadata(&mut self, ctx: FileContext) -> anyhow::Result<Metadata>;
 }
 
-pub struct OrgHandler {
-    dispatcher: Arc<Mutex<FileDispatcher>>,
-}
+clone_trait_object!(FileHandler);
+
+#[derive(Clone)]
+pub struct OrgHandler {}
 
 impl OrgHandler {
     fn parse_file(ctx: &FileContext) -> anyhow::Result<Document> {
@@ -57,8 +73,8 @@ impl OrgHandler {
 }
 
 impl FileHandler for OrgHandler {
-    fn new(dispatcher: Arc<Mutex<FileDispatcher>>) -> Self {
-        Self { dispatcher }
+    fn new() -> Self {
+        Self {}
     }
 
     fn handle_file(&mut self, ctx: FileContext) -> anyhow::Result<()> {
@@ -121,20 +137,25 @@ impl FileHandler for OrgHandler {
                 )
                 .to_string(),
             description: parsed.metadata.get("desc").cloned(),
-            modified: std::fs::metadata(ctx.source_path.clone())?.modified()?.into(),
+            modified: std::fs::metadata(ctx.source_path.clone())?
+                .modified()?
+                .into(),
             // created: std::fs::metadata(ctx.source_path.clone())?.created()?.into(),
-            url: format!("{}/{}", ctx.site_url, ctx.relative_path.clone().with_extension("html").display())
+            url: format!(
+                "{}/{}",
+                ctx.site_url,
+                ctx.relative_path.clone().with_extension("html").display()
+            ),
         })
     }
 }
 
-pub struct CopyHandler {
-    dispatcher: Arc<Mutex<FileDispatcher>>,
-}
+#[derive(Clone)]
+pub struct CopyHandler {}
 
 impl FileHandler for CopyHandler {
-    fn new(dispatcher: Arc<Mutex<FileDispatcher>>) -> Self {
-        Self { dispatcher }
+    fn new() -> Self {
+        Self {}
     }
 
     fn handle_file(&mut self, ctx: FileContext) -> anyhow::Result<()> {
@@ -156,7 +177,7 @@ impl FileHandler for CopyHandler {
         if let Some(ext) = ctx.source_path.extension() {
             match ext.to_str().unwrap() {
                 "png" | "jpg" | "jpeg" | "webm" | "gif" => Ok(Metadata::Image {
-                    url: ctx.relative_path.to_str().unwrap().to_owned(),
+                    url: format!("{}/{}", ctx.site_url, ctx.relative_path.display()),
                 }),
                 _ => Err(anyhow::anyhow!("File type not extractable to metadata.")),
             }

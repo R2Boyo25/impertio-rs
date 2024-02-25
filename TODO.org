@@ -16,7 +16,6 @@
 - [ ] escaping
 * TODO some sort of language name mapping for HLJS
 * TODO Property drawers
-* TODO ~sitemap.xml~ generation
 
 * Templating
 ** TODO regenerate file when template changes
@@ -31,3 +30,6 @@
 - https://github.com/tree-sitter/tree-sitter/tree/master/lib/binding_rust
 - https://docs.rs/crate/highlighting/latest
 - why? https://toast.al/posts/softwarecraft/2023-07-28_client-side-syntax-highlighting-must-stop
+
+* TODO RSS
+* TODO Index pages

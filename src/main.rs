@@ -1,6 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::{path::PathBuf, str::FromStr};
 
 use clap::Parser;
+use impertio::config::Config;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -11,8 +12,7 @@ struct Args {
     dest: String,
 }
 
-fn main() {
-    // Initialize Logging.
+fn main() -> anyhow::Result<()>{
     let log_environ = env_logger::Env::new()
         .filter("IMPERTIO_LOG")
         .write_style("IMPERTIO_LOG_STYLE");
@@ -22,19 +22,21 @@ fn main() {
     log_builder.parse_env(log_environ);
     log_builder.init();
 
-    // Parse Arguments.
     let args = Args::parse();
+
+    let mut config_path = PathBuf::from_str(&args.source)?;
+    config_path.push("impertio.yaml");
+
+    let config: Config = serde_yaml::from_str(&std::fs::read_to_string(config_path)?)?;
 
     log::info!("Beginning to process `{}`", args.source);
     log::info!("Outputting to `{}`", args.dest);
 
-    let fd = impertio::files::FileDispatcher::new(&args.source);
-
-    let fd = Arc::new(Mutex::new(fd));
-    fd.lock().unwrap().rc = Some(fd.clone());
-    fd.lock().unwrap().register_handlers();
+    let mut fd = impertio::files::FileDispatcher::new(&args.source, config);
     
-    fd.lock().unwrap().handle_files(args.dest, args.source);
+    fd.handle_files(args.dest, args.source);
 
     log::info!("Done.");
+
+    Ok(())
 }
