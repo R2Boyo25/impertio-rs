@@ -156,7 +156,7 @@ impl FileHandler for OrgHandler {
                 } else {
                     |c: char| c.is_whitespace()
                 })
-                .map(|tag| tag.to_owned())
+                .map(|tag| tag.trim().to_owned())
                 .collect()
             } else {
                 vec![]
