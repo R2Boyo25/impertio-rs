@@ -1,4 +1,5 @@
 #+TITLE: Computer Science
 #+AUTHOR: Kazani
+#+DESC: Computer science stuff /shrug
 
 test

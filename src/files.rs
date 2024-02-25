@@ -1,8 +1,12 @@
-use std::ffi::OsStr;
-use std::io::Write;
-use std::path::{Path, PathBuf};
-//use std::process::Command;
+use crate::handler::{CopyHandler, FileContext, FileHandler, OrgHandler};
+use crate::metadata::Metadata;
 use crate::template::Templates;
+use sitemap_rs::url::Url;
+use sitemap_rs::url_set::UrlSet;
+use std::collections::HashMap;
+use std::ffi::OsStr;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 fn path_to_rel_path(root: PathBuf, path: PathBuf) -> PathBuf {
     match path.strip_prefix(root) {
@@ -14,123 +18,94 @@ fn path_to_rel_path(root: PathBuf, path: PathBuf) -> PathBuf {
     }
 }
 
-/*fn file_type(file: PathBuf) {
-    match String::from_utf8_lossy(Command::new("ls")
-        .arg(file)
-        .arg("--mime-type")
-        .output().unwrap().stdout).as_str() {
-            "image/png" => log::info!("image"),
-            "text/x-org" => log::info!("org-file")
-        }
-}*/
-
 fn filter_file(file: &PathBuf) -> bool {
     let filename = file.file_name().unwrap().to_str().unwrap();
 
     let is_backup = filename.ends_with("~");
     let is_buffer = filename.ends_with("#") && filename.starts_with("#");
 
-    file.is_file() && !is_buffer && !is_backup
+    file.is_file()
+        && !is_buffer
+        && !is_backup
+        && !file
+            .components()
+            .any(|s| AsRef::<OsStr>::as_ref(&s).to_str() == Some(".git"))
 }
 
-pub struct FileHandler {
-    templates: Templates,
+pub struct FileDispatcher {
+    pub templates: Templates,
+    handlers: HashMap<String, Box<dyn FileHandler>>,
+    pub rc: Option<Arc<Mutex<Self>>>,
 }
 
-fn file_changed(old: &Path, new: &Path) -> std::io::Result<bool> {
-    Ok(!new.exists() || new.metadata()?.modified()? < old.metadata()?.modified()?)
-}
-
-fn writeable(path: &Path) -> std::io::Result<std::fs::File> {
-    use std::fs::{create_dir_all, File};
-
-    create_dir_all(path.parent().unwrap())?;
-    File::create(path)
-}
-
-impl FileHandler {
+impl FileDispatcher {
     pub fn new(data_dir: &str) -> Self {
         Self {
             templates: Templates::new(Path::new(data_dir)),
+            handlers: HashMap::new(),
+            rc: None,
         }
     }
 
-    fn handle_file(&mut self, data_dir: PathBuf, root: PathBuf, rel_file: PathBuf) {
-        let file: PathBuf = PathBuf::from_iter(vec![root.clone(), rel_file.clone()]);
-        let mut new_file: PathBuf = PathBuf::from_iter(vec![data_dir, rel_file]);
+    pub fn register_handlers(&mut self) {
+        self.register_handler::<OrgHandler>("org");
+        self.register_handler::<CopyHandler>("_default");
+    }
 
-        match file
+    fn register_handler<H: FileHandler + 'static>(&mut self, extension: &str) {
+        self.handlers.insert(
+            extension.to_owned(),
+            Box::new(H::new(self.rc.clone().unwrap())),
+        );
+    }
+
+    fn handle_file(
+        &mut self,
+        data_dir: PathBuf,
+        root: PathBuf,
+        rel_file: PathBuf,
+    ) -> anyhow::Result<()> {
+        let file: PathBuf = PathBuf::from_iter(vec![root.clone(), rel_file.clone()]);
+        let new_file: PathBuf = PathBuf::from_iter(vec![data_dir, rel_file.clone()]);
+
+        let ext = file
             .extension()
             .unwrap_or(&OsStr::new(""))
             .to_str()
-            .unwrap_or("")
-        {
-            "org" => {
-                new_file.set_extension("html");
+            .unwrap_or("");
 
-                let mut source_file: PathBuf = new_file.clone();
-                source_file.set_extension("org");
+        let ctx = FileContext::new(&rel_file, &file, &new_file, &self.templates);
 
-                if !file_changed(&file, &new_file).unwrap()
-                    && !file_changed(&file, &source_file).unwrap()
-                {
-                    return;
-                }
+        if let Some(handler) = self.handlers.get_mut(ext) {
+            handler.handle_file(ctx)
+        } else {
+            let handler = self.handlers.get_mut("_default").unwrap();
+            handler.handle_file(ctx)
+        }
+    }
 
-                match file
-                    .file_stem()
-                    .unwrap_or(file.as_os_str())
-                    .to_str()
-                    .unwrap_or(file.to_str().unwrap())
-                {
-                    "index" => log::info!(
-                        "Parsing index of {:?}",
-                        file.parent().unwrap_or(&Path::new("<root>"))
-                    ),
-                    _ => log::info!("Parsing Org file {:?}", file),
-                }
+    fn extract_metadata(
+        &mut self,
+        data_dir: PathBuf,
+        root: PathBuf,
+        rel_file: PathBuf,
+    ) -> anyhow::Result<Metadata> {
+        let file: PathBuf = PathBuf::from_iter(vec![root.clone(), rel_file.clone()]);
+        let new_file: PathBuf = PathBuf::from_iter(vec![data_dir, rel_file.clone()]);
 
-                let parsed = crate::org::Document::parse_file(file.to_str().unwrap()).unwrap();
-                let out = self
-                    .templates
-                    .render(
-                        "root.html",
-                        file.as_path(),
-                        &parsed.to_html(),
-                        Some(
-                            parsed
-                                .metadata
-                                .iter()
-                                .map(|(key, value)| (key.as_str(), value.to_owned()))
-                                .collect(),
-                        ),
-                    )
-                    .unwrap();
+        let ext = file
+            .extension()
+            .unwrap_or(&OsStr::new(""))
+            .to_str()
+            .unwrap_or("");
 
-                log::info!("{}: {}", file.to_str().unwrap(), out);
+        let ctx = FileContext::new(&rel_file, &file, &new_file, &self.templates);
 
-                writeable(&new_file)
-                    .unwrap()
-                    .write_all(out.as_bytes())
-                    .unwrap();
-                writeable(&source_file)
-                    .unwrap()
-                    .write_all(std::fs::read(file).unwrap().as_slice())
-                    .unwrap();
-            }
-            "html" => (),
-            _ => {
-                if !file_changed(&file, &new_file).unwrap() {
-                    return;
-                }
-
-                log::warn!("File {:?} not recognized. Copying as-is...", file);
-
-                writeable(&new_file)
-                    .unwrap()
-                    .write_all(std::fs::read(file).unwrap().as_slice())
-                    .unwrap();
-            }
+        if let Some(handler) = self.handlers.get_mut(ext) {
+            handler.extract_metadata(ctx)
+        } else {
+            let handler = self.handlers.get_mut("_default").unwrap();
+            handler.extract_metadata(ctx)
         }
     }
 
@@ -138,16 +113,48 @@ impl FileHandler {
         let root_path = Path::new(&dir).canonicalize().unwrap();
         let data_path = Path::new(&data_dir).canonicalize().unwrap();
 
-        for file in walkdir::WalkDir::new(dir.clone())
+        let files: Vec<PathBuf> = walkdir::WalkDir::new(dir.clone())
             .into_iter()
             .map(|file| file.as_ref().unwrap().path().canonicalize().unwrap())
             .filter(filter_file)
-        {
+            .collect();
+
+        let urls: Vec<Url> = files
+            .iter()
+            .map(|file| {
+                self.extract_metadata(
+                    data_path.clone(),
+                    root_path.clone(),
+                    path_to_rel_path(root_path.clone(), file.clone()),
+                )
+            })
+            .filter_map(|res| res.ok())
+            .filter_map(|meta| match meta {
+                Metadata::Article { modified, url, .. } => {
+                    let mut builder = Url::builder(url);
+                    builder.last_modified(modified.into());
+                    builder.build().ok()
+                }
+                Metadata::Image { .. } => None,
+            })
+            .collect();
+
+        files.iter().for_each(|file| {
             self.handle_file(
                 data_path.clone(),
                 root_path.clone(),
-                path_to_rel_path(root_path.clone(), file),
+                path_to_rel_path(root_path.clone(), file.clone()),
             )
+            .unwrap()
+        });
+
+        if urls.len() > 0 {
+            let sitemap_path = format!("{}/sitemap.xml", data_path.clone().display());
+            log::info!("Generating `{}`", sitemap_path);
+            let sitemap_file =
+                std::fs::File::create(sitemap_path).expect("Unable to write sitemap.xml");
+            let url_set = UrlSet::new(urls.clone()).expect("failed a <urlset> validation");
+            url_set.write(sitemap_file).unwrap();
         }
     }
 }

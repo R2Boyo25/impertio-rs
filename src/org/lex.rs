@@ -257,17 +257,31 @@ impl Lexer {
     fn handle_line(&mut self, line: &str) -> Option<Token> {
         match &self.state {
             State::Default => self.handle_normal(line),
-            State::Drawer { name, lines, start } => self.handle_drawer(line, name.to_owned(), lines.to_owned(), start.to_owned()),
+            State::Drawer { name, lines, start } => {
+                self.handle_drawer(line, name.to_owned(), lines.to_owned(), start.to_owned())
+            }
             State::Block {
                 _type,
                 lines,
                 args,
                 start,
-            } => self.handle_block(line, _type.to_owned(), args.to_owned(), lines.to_owned(), start.to_owned())
+            } => self.handle_block(
+                line,
+                _type.to_owned(),
+                args.to_owned(),
+                lines.to_owned(),
+                start.to_owned(),
+            ),
         }
     }
 
-    fn handle_drawer(&mut self, line: &str, name: String, lines: Vec<String>, start: Location) -> Option<Token> {
+    fn handle_drawer(
+        &mut self,
+        line: &str,
+        name: String,
+        lines: Vec<String>,
+        start: Location,
+    ) -> Option<Token> {
         if let Ok(Some(_)) = CLOSE_DRAWER_REGEX.captures(line) {
             let token = Token {
                 kind: TokenKind::Drawer {
@@ -295,7 +309,14 @@ impl Lexer {
         }
     }
 
-    fn handle_block(&mut self, line: &str, _type: Option<String>, args: String, lines: Vec<String>, start: Location) -> Option<Token> {
+    fn handle_block(
+        &mut self,
+        line: &str,
+        _type: Option<String>,
+        args: String,
+        lines: Vec<String>,
+        start: Location,
+    ) -> Option<Token> {
         if let Ok(Some(caps)) = CLOSE_BLOCK_REGEX.captures(line) {
             if caps
                 .name("type")
@@ -306,12 +327,7 @@ impl Lexer {
                 panic!("Closing a block of a different type.")
             }
 
-            let token = self.construct_block(
-                _type,
-                lines,
-                args,
-                start.clone(),
-            );
+            let token = self.construct_block(_type, lines, args, start.clone());
 
             self.state = State::Default;
 
@@ -331,7 +347,7 @@ impl Lexer {
             None
         }
     }
-    
+
     fn handle_normal(&mut self, line: &str) -> Option<Token> {
         if line.trim() == "" {
             self.wrap(TokenKind::EmptyLine)

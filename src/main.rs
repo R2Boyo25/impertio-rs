@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 use clap::Parser;
 
 #[derive(Parser, Debug)]
@@ -26,7 +28,13 @@ fn main() {
     log::info!("Beginning to process `{}`", args.source);
     log::info!("Outputting to `{}`", args.dest);
 
-    impertio::files::FileHandler::new(&args.source).handle_files(args.dest, args.source);
+    let fd = impertio::files::FileDispatcher::new(&args.source);
+
+    let fd = Arc::new(Mutex::new(fd));
+    fd.lock().unwrap().rc = Some(fd.clone());
+    fd.lock().unwrap().register_handlers();
+    
+    fd.lock().unwrap().handle_files(args.dest, args.source);
 
     log::info!("Done.");
 }

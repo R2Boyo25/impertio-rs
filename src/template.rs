@@ -4,6 +4,7 @@ use std::{
 };
 use tera::{Context, Tera};
 
+#[derive(Clone)]
 pub struct Templates {
     dir: PathBuf,
 }
@@ -107,8 +108,7 @@ impl Templates {
 mod test {
     use std::{
         collections::HashMap,
-        path::{Path, PathBuf},
-        str::FromStr,
+        path::Path,
     };
 
     use crate::template::Templates;

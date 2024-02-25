@@ -35,21 +35,18 @@ impl HtmlBuilder {
                             if args.len() > 0 {
                                 self.builder.add_preformatted(format!(
                                     "<code class=\"language-{}\">{}</code>",
-                                    args[0],
-                                    contents
+                                    args[0], contents
                                 ));
                             } else {
-                                self.builder.add_preformatted(format!(
-                                    "<code>{}</code>",
-                                    contents
-                                ));
+                                self.builder
+                                    .add_preformatted(format!("<code>{}</code>", contents));
                             }
-                        },
+                        }
                         "export" => {
                             if args.last() == Some(&"html".to_owned()) {
                                 self.builder.add_raw(contents);
                             }
-                        },
+                        }
                         _ => {
                             todo!();
                         }
@@ -67,8 +64,6 @@ impl HtmlBuilder {
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
-
     use crate::org::{html::HtmlBuilder, Document};
 
     #[test]
