@@ -4,6 +4,7 @@ use std::{
 };
 use tera::{Context, Tera};
 
+#[derive(Clone)]
 pub struct Templates {
     dir: PathBuf,
 }
