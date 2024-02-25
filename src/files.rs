@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2024 Ohin "Kazani" Taylor <kazani@kazani.dev>
+// SPDX-License-Identifier: MIT
+
 use crate::config::Config;
 use crate::handler::{CopyHandler, FileContext, FileHandler, OrgHandler};
 use crate::metadata::Metadata;

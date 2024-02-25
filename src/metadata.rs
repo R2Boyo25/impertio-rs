@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2024 Ohin "Kazani" Taylor <kazani@kazani.dev>
+// SPDX-License-Identifier: MIT
+
 #[derive(Clone, Debug)]
 pub enum Metadata {
     Article {

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2024 Ohin "Kazani" Taylor <kazani@kazani.dev>
+// SPDX-License-Identifier: MIT
+
 use dyn_clone::{clone_trait_object, DynClone};
 use std::{
     ffi::OsStr,
