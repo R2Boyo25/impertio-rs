@@ -19,7 +19,7 @@ lazy_static = "1.4.0"
 log = "0.4.20"
 relative-path = "1.9.0"
 rss = "2.0.7"
-serde = "1.0.197"
+serde = { version = "1.0.197", features = ["derive"] }
 serde_yaml = "0.9.32"
 sitemap-rs = "0.2.0"
 syntect = "5.1.0"
