@@ -34,7 +34,7 @@ fn main() -> anyhow::Result<()>{
 
     let mut fd = impertio::files::FileDispatcher::new(&args.source, config);
     
-    fd.handle_files(args.dest, args.source);
+    fd.handle_files(args.dest, args.source)?;
 
     log::info!("Done.");
 

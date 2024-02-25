@@ -31,5 +31,6 @@
 - https://docs.rs/crate/highlighting/latest
 - why? https://toast.al/posts/softwarecraft/2023-07-28_client-side-syntax-highlighting-must-stop
 
-* TODO RSS
+* TODO RSS [0/1]
+- TODO HTML content for RSS Items
 * TODO Index pages

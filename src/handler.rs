@@ -136,6 +136,7 @@ impl FileHandler for OrgHandler {
                         .to_owned(),
                 )
                 .to_string(),
+            author: parsed.metadata.get("author").cloned(),
             description: parsed.metadata.get("desc").cloned(),
             modified: std::fs::metadata(ctx.source_path.clone())?
                 .modified()?
@@ -146,6 +147,17 @@ impl FileHandler for OrgHandler {
                 ctx.site_url,
                 ctx.relative_path.clone().with_extension("html").display()
             ),
+            tags: if let Some(tags) = parsed.metadata.get("tags") {
+                tags.split(if tags.contains(",") {
+                    |c: char| c == ','
+                } else {
+                    |c: char| c.is_whitespace()
+                })
+                .map(|tag| tag.to_owned())
+                .collect()
+            } else {
+                vec![]
+            },
         })
     }
 }

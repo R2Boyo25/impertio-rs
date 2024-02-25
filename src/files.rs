@@ -57,10 +57,8 @@ impl FileDispatcher {
     }
 
     fn register_handler<H: FileHandler + 'static>(&mut self, extension: &str) {
-        self.handlers.insert(
-            extension.to_owned(),
-            Box::new(H::new()),
-        );
+        self.handlers
+            .insert(extension.to_owned(), Box::new(H::new()));
     }
 
     fn handle<T, F: FnOnce(&mut Box<dyn FileHandler>, &FileContext) -> anyhow::Result<T>>(
@@ -89,7 +87,7 @@ impl FileDispatcher {
         FileContext::new(&self.config, &rel_file, &file, &new_file, &self.templates)
     }
 
-    pub fn handle_files(&mut self, data_dir: String, dir: String) {
+    pub fn handle_files(&mut self, data_dir: String, dir: String) -> anyhow::Result<()> {
         let root_path = Path::new(&dir).canonicalize().unwrap();
         let data_path = Path::new(&data_dir).canonicalize().unwrap();
 
@@ -106,17 +104,21 @@ impl FileDispatcher {
             })
             .collect();
 
-        let urls: Vec<Url> = files
+        let metadata: Vec<Metadata> = files
             .iter()
             .map(|ctx| self.handle(ctx, |handler, ctx| handler.extract_metadata(ctx.clone())))
             .filter_map(|res| res.ok())
+            .collect();
+
+        let urls: Vec<Url> = metadata
+            .iter()
             .filter_map(|meta| match meta {
                 Metadata::Article { modified, url, .. } => {
-                    let mut builder = Url::builder(url);
-                    builder.last_modified(modified.into());
+                    let mut builder = Url::builder(url.to_string());
+                    builder.last_modified((*modified).into());
                     builder.build().ok()
                 }
-                Metadata::Image { .. } => None,
+                _ => None,
             })
             .collect();
 
@@ -131,7 +133,108 @@ impl FileDispatcher {
             let sitemap_file =
                 std::fs::File::create(sitemap_path).expect("Unable to write sitemap.xml");
             let url_set = UrlSet::new(urls.clone()).expect("failed a <urlset> validation");
-            url_set.write(sitemap_file).unwrap();
+            url_set.write(sitemap_file)?;
         }
+
+        if let Some(rss_config) = self.config.rss.clone() {
+            let rss_builder = rss::Channel {
+                title: rss_config.title,
+                link: rss_config.link,
+                description: rss_config.description,
+                language: rss_config.language,
+                copyright: rss_config.copyright,
+                managing_editor: rss_config.managing_editor,
+                webmaster: rss_config.webmaster,
+                pub_date: None,
+                last_build_date: None,
+                categories: rss_config
+                    .categories
+                    .unwrap_or_else(|| vec![])
+                    .iter()
+                    .map(|category| rss::Category {
+                        name: category.name.clone(),
+                        domain: category.domain.clone(),
+                    })
+                    .collect(),
+                generator: Some(format!(
+                    "Impertio {} ({}), RSS Crate (https://crates.io/crates/rss)",
+                    env!("CARGO_PKG_VERSION"),
+                    env!("CARGO_PKG_HOMEPAGE")
+                )),
+                docs: Some("https://www.rssboard.org/rss-specification".to_owned()),
+                cloud: None,
+                ttl: rss_config.ttl.or(Some(60)).map(|ttl| ttl.to_string()),
+                image: rss_config.image.map(|img| rss::Image {
+                    url: img.url,
+                    title: img.title,
+                    link: img.link,
+                    width: img.width,
+                    height: img.height,
+                    description: img.description,
+                }),
+                rating: rss_config.rating,
+                text_input: rss_config.text_input.map(|ti| rss::TextInput {
+                    title: ti.title,
+                    description: ti.description,
+                    name: ti.name,
+                    link: ti.link,
+                }),
+                skip_hours: rss_config.skip_hours.unwrap_or_else(|| vec![]),
+                skip_days: rss_config.skip_days.unwrap_or_else(|| vec![]),
+                extensions: Default::default(),
+                itunes_ext: None,
+                dublin_core_ext: None,
+                syndication_ext: None,
+                namespaces: Default::default(),
+                items: metadata
+                    .iter()
+                    .filter_map(|meta| match meta {
+                        Metadata::Article {
+                            title,
+                            description,
+                            modified,
+                            url,
+                            author,
+                            tags,
+                        } => Some(rss::Item {
+                            title: Some(title.to_string()),
+                            link: Some(url.to_string()),
+                            guid: Some(rss::Guid {
+                                value: url.to_string(),
+                                permalink: true,
+                            }),
+                            description: description.to_owned(),
+                            author: author.to_owned(),
+                            categories: tags
+                                .to_owned()
+                                .iter()
+                                .map(|tag| rss::Category {
+                                    name: tag.to_string(),
+                                    domain: None,
+                                })
+                                .collect(),
+                            comments: None,
+                            enclosure: None,
+                            pub_date: Some(modified.to_rfc2822()),
+                            source: None,
+                            content: None,
+                            extensions: Default::default(),
+                            itunes_ext: None,
+                            dublin_core_ext: None,
+                        }),
+                        _ => None,
+                    })
+                    .collect(),
+            };
+            
+            let rss_path = format!("{}/feed", data_path.clone().display());
+            log::info!("Generating `{}` (RSS)", rss_path);
+
+            let rss_file = std::fs::File::create(rss_path).expect("Unable to write RSS feed");
+
+            rss_builder.pretty_write_to(rss_file, b'\t', 1)?;
+        }
+
+        Ok(())
     }
 }

@@ -1,1 +1,6 @@
 site_url: https://kazani.dev
+rss:
+  title: Kazani.dev Articles
+  link: https://kazani.dev
+  description: The latest posts from Kazani's blog.
+  copyright: Copyright 2024, Ohin "Kazani" Taylor
