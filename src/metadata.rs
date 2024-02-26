@@ -10,7 +10,6 @@ pub enum Metadata {
         tags: Vec<String>,
 
         modified: chrono::DateTime<chrono::Utc>,
-        // created: chrono::DateTime<chrono::Utc>,
 
         url: String,
     },

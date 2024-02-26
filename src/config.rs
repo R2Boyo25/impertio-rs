@@ -24,7 +24,7 @@ pub struct RSSConfig {
     pub rating: Option<String>,
     pub text_input: Option<TextInput>,
     pub skip_hours: Option<Vec<String>>,
-    pub skip_days: Option<Vec<String>>
+    pub skip_days: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]

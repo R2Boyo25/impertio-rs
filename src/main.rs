@@ -15,7 +15,7 @@ struct Args {
     dest: String,
 }
 
-fn main() -> anyhow::Result<()>{
+fn main() -> anyhow::Result<()> {
     let log_environ = env_logger::Env::new()
         .filter("IMPERTIO_LOG")
         .write_style("IMPERTIO_LOG_STYLE");
@@ -36,7 +36,7 @@ fn main() -> anyhow::Result<()>{
     log::info!("Outputting to `{}`", args.dest);
 
     let mut fd = impertio::files::FileDispatcher::new(&args.source, config);
-    
+
     fd.handle_files(args.dest, args.source)?;
 
     log::info!("Done.");

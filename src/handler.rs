@@ -3,7 +3,10 @@
 
 use dyn_clone::{clone_trait_object, DynClone};
 use std::{
-    ffi::OsStr, io::Write, path::{Path, PathBuf}, sync::{Arc, Mutex}
+    ffi::OsStr,
+    io::Write,
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex},
 };
 
 use crate::{config::Config, metadata::Metadata, org::Document, template::Templates};
@@ -86,7 +89,10 @@ pub struct OrgHandler {}
 
 impl OrgHandler {
     fn parse_file(ctx: &FileContext) -> anyhow::Result<Document> {
-        Ok(crate::org::Document::parse_file(ctx.source_path.to_str().unwrap(), ctx.clone()).unwrap())
+        Ok(
+            crate::org::Document::parse_file(ctx.source_path.to_str().unwrap(), ctx.clone())
+                .unwrap(),
+        )
     }
 }
 

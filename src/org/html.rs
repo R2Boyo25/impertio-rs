@@ -72,8 +72,9 @@ mod test {
     #[test]
     fn headings() {
         assert_eq!(
-            HtmlBuilder::new()
-                .from_document(&Document::parse("* Hello, World!", "heading.org", Default::default()).unwrap()),
+            HtmlBuilder::new().from_document(
+                &Document::parse("* Hello, World!", "heading.org", Default::default()).unwrap()
+            ),
             "<div class=\"article\"><h1>Hello, World!</h1></div>"
         )
     }

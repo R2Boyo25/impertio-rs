@@ -109,10 +109,7 @@ impl Templates {
 
 #[cfg(test)]
 mod test {
-    use std::{
-        collections::HashMap,
-        path::Path,
-    };
+    use std::{collections::HashMap, path::Path};
 
     use crate::template::Templates;
 

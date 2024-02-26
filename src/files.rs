@@ -84,12 +84,19 @@ impl FileDispatcher {
         data_dir: PathBuf,
         root: PathBuf,
         rel_file: PathBuf,
-        metadata: Arc<Mutex<Vec<Metadata>>>
+        metadata: Arc<Mutex<Vec<Metadata>>>,
     ) -> FileContext {
         let file: PathBuf = PathBuf::from_iter(vec![root.clone(), rel_file.clone()]);
         let new_file: PathBuf = PathBuf::from_iter(vec![data_dir, rel_file.clone()]);
 
-        FileContext::new(&self.config, &rel_file, &file, &new_file, &self.templates, metadata)
+        FileContext::new(
+            &self.config,
+            &rel_file,
+            &file,
+            &new_file,
+            &self.templates,
+            metadata,
+        )
     }
 
     pub fn handle_files(&mut self, data_dir: String, dir: String) -> anyhow::Result<()> {
@@ -106,7 +113,7 @@ impl FileDispatcher {
                     data_path.clone(),
                     root_path.clone(),
                     path_to_rel_path(root_path.clone(), file.clone()),
-                    metadata_vec.clone()
+                    metadata_vec.clone(),
                 )
             })
             .collect();
@@ -235,7 +242,7 @@ impl FileDispatcher {
                     })
                     .collect(),
             };
-            
+
             let rss_path = format!("{}/feed", data_path.clone().display());
             log::info!("Generating `{}` (RSS)", rss_path);
 

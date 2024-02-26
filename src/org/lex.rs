@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: 2024 Ohin "Kazani" Taylor <kazani@kazani.dev>
 // SPDX-License-Identifier: MIT
 
-use std::env::args;
-
 use fancy_regex::{Match, Regex};
 use lazy_static::lazy_static;
 
