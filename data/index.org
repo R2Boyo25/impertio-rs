@@ -1,4 +1,5 @@
 #+TITLE: test
+#+TAGS: Org-mode, blog
 
 * This is a test.
 
@@ -11,3 +12,5 @@ Look, I can type :sparkles:paragraphs:sparkles:
 #+BEGIN_EXPORT html
 <div>I now support arbitrary HTML in my blog generator</div>
 #+END_EXPORT
+
+{{{listing(/CS)}}}

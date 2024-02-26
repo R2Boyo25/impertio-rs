@@ -10,6 +10,7 @@ use sitemap_rs::url_set::UrlSet;
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 fn path_to_rel_path(root: PathBuf, path: PathBuf) -> PathBuf {
     match path.strip_prefix(root) {
@@ -83,16 +84,18 @@ impl FileDispatcher {
         data_dir: PathBuf,
         root: PathBuf,
         rel_file: PathBuf,
+        metadata: Arc<Mutex<Vec<Metadata>>>
     ) -> FileContext {
         let file: PathBuf = PathBuf::from_iter(vec![root.clone(), rel_file.clone()]);
         let new_file: PathBuf = PathBuf::from_iter(vec![data_dir, rel_file.clone()]);
 
-        FileContext::new(&self.config, &rel_file, &file, &new_file, &self.templates)
+        FileContext::new(&self.config, &rel_file, &file, &new_file, &self.templates, metadata)
     }
 
     pub fn handle_files(&mut self, data_dir: String, dir: String) -> anyhow::Result<()> {
         let root_path = Path::new(&dir).canonicalize().unwrap();
         let data_path = Path::new(&data_dir).canonicalize().unwrap();
+        let metadata_vec: Arc<Mutex<Vec<Metadata>>> = Arc::new(Mutex::new(vec![]));
 
         let files: Vec<FileContext> = walkdir::WalkDir::new(dir.clone())
             .into_iter()
@@ -103,6 +106,7 @@ impl FileDispatcher {
                     data_path.clone(),
                     root_path.clone(),
                     path_to_rel_path(root_path.clone(), file.clone()),
+                    metadata_vec.clone()
                 )
             })
             .collect();
@@ -112,6 +116,8 @@ impl FileDispatcher {
             .map(|ctx| self.handle(ctx, |handler, ctx| handler.extract_metadata(ctx.clone())))
             .filter_map(|res| res.ok())
             .collect();
+
+        metadata_vec.lock().unwrap().extend(metadata.clone());
 
         let urls: Vec<Url> = metadata
             .iter()

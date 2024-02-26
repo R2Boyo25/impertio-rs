@@ -73,7 +73,7 @@ mod test {
     fn headings() {
         assert_eq!(
             HtmlBuilder::new()
-                .from_document(&Document::parse("* Hello, World!", "heading.org").unwrap()),
+                .from_document(&Document::parse("* Hello, World!", "heading.org", Default::default()).unwrap()),
             "<div class=\"article\"><h1>Hello, World!</h1></div>"
         )
     }
@@ -88,7 +88,8 @@ mod test {
 Hewwo!
 
 Hai!"#,
-                    "paragraphs.org"
+                    "paragraphs.org",
+                    Default::default()
                 )
                 .unwrap()
             ),
@@ -101,7 +102,7 @@ Hai!"#,
         assert_eq!(
             HtmlBuilder::new().from_document(&Document::parse(r#"#+BEGIN_SRC python
 print('Hello, world!')
-#+END_SRC"#, "py_src.org").unwrap()),
+#+END_SRC"#, "py_src.org", Default::default()).unwrap()),
             "<div class=\"article\"><pre><code class=\"language-python\">print('Hello, world!')</code></pre></div>"
         )
     }
@@ -112,7 +113,7 @@ print('Hello, world!')
             HtmlBuilder::new().from_document(&Document::parse(r#"
 | a | b | c |
 | 1 | 2 | 3 |
-"#, "table.org").unwrap()),
+"#, "table.org", Default::default()).unwrap()),
             "<div class=\"article\"><table><thead></thead><tbody><tr><td></td><td>a</td><td>b</td><td>c</td><td></td></tr><tr><td></td><td>1</td><td>2</td><td>3</td><td></td></tr></tbody></table></div>"
         )
     }

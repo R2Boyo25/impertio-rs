@@ -3,9 +3,7 @@
 
 use dyn_clone::{clone_trait_object, DynClone};
 use std::{
-    ffi::OsStr,
-    io::Write,
-    path::{Path, PathBuf},
+    ffi::OsStr, io::Write, path::{Path, PathBuf}, sync::{Arc, Mutex}
 };
 
 use crate::{config::Config, metadata::Metadata, org::Document, template::Templates};
@@ -30,6 +28,7 @@ pub struct FileContext {
     pub ext: String,
 
     pub templates: Templates,
+    pub metadata: Arc<Mutex<Vec<Metadata>>>,
 }
 
 impl FileContext {
@@ -39,6 +38,7 @@ impl FileContext {
         source: &Path,
         output: &Path,
         templates: &Templates,
+        metadata: Arc<Mutex<Vec<Metadata>>>,
     ) -> Self {
         Self {
             relative_path: relative.to_owned(),
@@ -52,6 +52,21 @@ impl FileContext {
                 .to_string(),
             site_url: config.site_url.clone(),
             templates: templates.clone(),
+            metadata,
+        }
+    }
+}
+
+impl Default for FileContext {
+    fn default() -> Self {
+        Self {
+            source_path: Default::default(),
+            output_path: Default::default(),
+            site_url: "".into(),
+            relative_path: Default::default(),
+            ext: "org".into(),
+            templates: Templates::new(&PathBuf::new()),
+            metadata: Arc::new(Mutex::new(vec![])),
         }
     }
 }
@@ -71,7 +86,7 @@ pub struct OrgHandler {}
 
 impl OrgHandler {
     fn parse_file(ctx: &FileContext) -> anyhow::Result<Document> {
-        Ok(crate::org::Document::parse_file(ctx.source_path.to_str().unwrap()).unwrap())
+        Ok(crate::org::Document::parse_file(ctx.source_path.to_str().unwrap(), ctx.clone()).unwrap())
     }
 }
 

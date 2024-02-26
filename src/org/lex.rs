@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2024 Ohin "Kazani" Taylor <kazani@kazani.dev>
 // SPDX-License-Identifier: MIT
 
+use std::env::args;
+
 use fancy_regex::{Match, Regex};
 use lazy_static::lazy_static;
 
@@ -98,13 +100,17 @@ pub enum TokenKind {
         args: String,
         contents: Vec<String>,
     },
-    /*
-    /// \[(?label:[a-zA-Z0-9_-])\]: (?contents:.+)
-    /// It ends at the next footnote definition, the next heading, two consecutive blank lines, or the end of buffer.
-    FootNote {
-        label: String,
-        contents: String,
-    },*/
+
+    Macro {
+        name: String,
+        args: Vec<String>,
+    }, /*
+       /// \[(?label:[a-zA-Z0-9_-])\]: (?contents:.+)
+       /// It ends at the next footnote definition, the next heading, two consecutive blank lines, or the end of buffer.
+       FootNote {
+           label: String,
+           contents: String,
+       },*/
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -151,6 +157,7 @@ lazy_static! {
     static ref INDENTED: Regex = Regex::new(r"^\s+").unwrap();
     static ref TABLE_ROW: Regex = Regex::new(r"^(?<cells>\|.+)+\|?").unwrap();
     static ref KEYWORD: Regex = Regex::new(r"^#\+(?<name>[a-zA-Z_]+):\s*(?<value>.+)$").unwrap();
+    static ref MACRO: Regex = Regex::new(r"{{{(?<name>[-\w\d_]+)(?:\((?<args>.*)\))?}}}").unwrap();
 }
 
 impl Lexer {
@@ -423,6 +430,50 @@ impl Lexer {
                 name: caps["name"].to_ascii_lowercase().into(),
                 content: caps["value"].into(),
             })
+        } else if let Ok(Some(caps)) = MACRO.captures(line) {
+            self.wrap(TokenKind::Macro {
+                name: caps["name"].to_ascii_lowercase().into(),
+                args: if let Some(args_match) = caps.name("args") {
+                    let args_str = args_match.as_str();
+
+                    if args_str == "" {
+                        vec![]
+                    } else {
+                        let mut args: Vec<String> = vec![];
+                        let mut buf: Vec<char> = vec![];
+                        let mut escaped = false;
+
+                        args_str.chars().for_each(|c| {
+                            if !escaped && c == ',' {
+                                args.push(buf.iter().collect::<String>().trim().into());
+                                buf = vec![];
+                            } else if escaped && c == '\\' {
+                                buf.push('\\');
+                                escaped = false;
+                            } else if escaped && c == ',' {
+                                buf.push(',');
+                                escaped = false;
+                            } else if escaped {
+                                buf.push('\\');
+                                buf.push(c);
+                                escaped = false;
+                            } else if c == '\\' {
+                                escaped = true;
+                            } else {
+                                buf.push(c);
+                            }
+                        });
+
+                        if buf != vec![] {
+                            args.push(buf.iter().collect::<String>().trim().into());
+                        }
+
+                        args
+                    }
+                } else {
+                    vec![]
+                },
+            })
         } else if TABLE_ROW.is_match(line).unwrap() {
             match self.tokens.last().clone() {
                 Some(Token {
@@ -600,6 +651,82 @@ noooo"#
                     line: 1
                 }
             }])
+        )
+    }
+
+    #[test]
+    fn macro_call() {
+        assert_eq!(
+            Lexer::new("src.org").lex(
+                r#"{{{macro}}}
+{{{macro()}}}
+{{{macro(1)}}}
+{{{macro(1, 2)}}}
+{{{macro(1, 2\, still 2)}}}
+{{{listing(/cs)}}}"#
+            ),
+            Ok(vec![
+                Token {
+                    kind: TokenKind::Macro {
+                        name: "macro".into(),
+                        args: vec![]
+                    },
+                    location: Location {
+                        file: "src.org".into(),
+                        line: 1
+                    }
+                },
+                Token {
+                    kind: TokenKind::Macro {
+                        name: "macro".into(),
+                        args: vec![]
+                    },
+                    location: Location {
+                        file: "src.org".into(),
+                        line: 2
+                    }
+                },
+                Token {
+                    kind: TokenKind::Macro {
+                        name: "macro".into(),
+                        args: vec!["1".into()]
+                    },
+                    location: Location {
+                        file: "src.org".into(),
+                        line: 3
+                    }
+                },
+                Token {
+                    kind: TokenKind::Macro {
+                        name: "macro".into(),
+                        args: vec!["1".into(), "2".into()]
+                    },
+                    location: Location {
+                        file: "src.org".into(),
+                        line: 4
+                    }
+                },
+                Token {
+                    kind: TokenKind::Macro {
+                        name: "macro".into(),
+                        args: vec!["1".into(), "2, still 2".into()]
+                    },
+                    location: Location {
+                        file: "src.org".into(),
+                        line: 5
+                    }
+                },
+                Token {
+                    kind: TokenKind::Macro {
+                        name: "listing".into(),
+                        args: vec!["/cs".into()]
+                    },
+                    location: Location {
+                        file: "src.org".into(),
+                        line: 6
+                    }
+                }
+            ])
         )
     }
 }
